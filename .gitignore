@@ -1,0 +1,16 @@
+.env
+**/.env
+node_modules/
+bin/
+obj/
+.vs/
+.vscode/
+__pycache__/
+.venv/
+dist/
+*.user
+*.suo
+logs/
+Backups/
+*.zip
+*.log
