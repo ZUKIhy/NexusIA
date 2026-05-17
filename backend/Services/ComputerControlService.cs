@@ -40,6 +40,30 @@ public class ComputerControlService
         ["discord"] = "discord.exe"
     };
 
+    private readonly Dictionary<string, string> _knownSites = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["youtube"] = "https://www.youtube.com",
+        ["you tube"] = "https://www.youtube.com",
+        ["youtobe"] = "https://www.youtube.com",
+        ["google"] = "https://www.google.com",
+        ["gmail"] = "https://mail.google.com",
+        ["whatsapp web"] = "https://web.whatsapp.com",
+        ["whatsapp"] = "https://web.whatsapp.com",
+        ["chatgpt"] = "https://chatgpt.com",
+        ["chat gpt"] = "https://chatgpt.com",
+        ["github"] = "https://github.com",
+        ["notion"] = "https://www.notion.so",
+        ["drive"] = "https://drive.google.com",
+        ["google drive"] = "https://drive.google.com",
+        ["outlook web"] = "https://outlook.office.com/mail",
+        ["outlook"] = "https://outlook.office.com/mail",
+        ["teams web"] = "https://teams.microsoft.com",
+        ["instagram"] = "https://www.instagram.com",
+        ["facebook"] = "https://www.facebook.com",
+        ["linkedin"] = "https://www.linkedin.com",
+        ["spotify web"] = "https://open.spotify.com"
+    };
+
     public ComputerActionResult OpenApp(string appName)
     {
         var target = CleanAppName(appName);
@@ -79,13 +103,26 @@ public class ComputerControlService
         if (string.IsNullOrWhiteSpace(url))
             return new ComputerActionResult(false, "Informe a URL que devo abrir.");
 
-        var target = url.Trim();
+        var target = ResolveSite(url.Trim());
 
         if (!target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             target = "https://" + target;
 
         return Start(target, $"Abrindo URL: {target}", target);
+    }
+
+    public ComputerActionResult OpenSite(string site)
+    {
+        if (string.IsNullOrWhiteSpace(site))
+            return new ComputerActionResult(false, "Informe qual site devo abrir.");
+
+        var resolved = ResolveSite(site.Trim());
+
+        if (!IsUrlLike(resolved))
+            return new ComputerActionResult(false, $"Nao reconheci esse site: {site}", site);
+
+        return OpenUrl(resolved);
     }
 
     public ComputerActionResult SearchWeb(string query)
@@ -125,6 +162,29 @@ public class ComputerControlService
         return new ComputerActionResult(true, "Vou colar o texto na janela ativa.", text);
     }
 
+    public ComputerActionResult PrepareWhatsAppMessage(string recipient, string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return new ComputerActionResult(false, "Informe a mensagem que devo preparar.");
+
+        var cleanRecipient = recipient.Trim();
+        var digits = new string(cleanRecipient.Where(char.IsDigit).ToArray());
+        var encodedMessage = Uri.EscapeDataString(message.Trim());
+
+        if (digits.Length >= 10)
+        {
+            var phone = digits.StartsWith("55", StringComparison.Ordinal) ? digits : "55" + digits;
+            var url = $"https://wa.me/{phone}?text={encodedMessage}";
+            return Start(url, $"Abri o WhatsApp com a mensagem pronta para {cleanRecipient}. Revise e confirme o envio.", url);
+        }
+
+        CopyToClipboard(message.Trim());
+        return Start(
+            "https://web.whatsapp.com",
+            $"Abri o WhatsApp Web e copiei a mensagem. Selecione {cleanRecipient} e cole/enviar quando confirmar.",
+            "https://web.whatsapp.com");
+    }
+
     public object GetCapabilities()
     {
         return new
@@ -132,9 +192,12 @@ public class ComputerControlService
             canOpenApps = true,
             canOpenFolders = true,
             canOpenUrls = true,
+            canOpenNamedSites = true,
             canSearchWeb = true,
+            canPrepareWhatsAppMessages = RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
             canPasteIntoActiveWindow = RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
             safeApps = _knownApps.Keys.OrderBy(x => x).ToArray(),
+            safeSites = _knownSites.Keys.OrderBy(x => x).ToArray(),
             discoveredApps = DiscoverInstalledApps().Take(60).ToArray(),
             knownFolders = new[] { "downloads", "documentos", "desktop", "vault", "projeto", "frontend", "backend" }
         };
@@ -206,6 +269,52 @@ public class ComputerControlService
             target = target[2..].Trim();
 
         return target;
+    }
+
+    private string ResolveSite(string value)
+    {
+        var target = Normalize(value)
+            .Replace("o site", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("site", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("pagina", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("página", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("abre", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("abrir", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("abra", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("acesse", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("acessar", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        if (_knownSites.TryGetValue(target, out var url))
+            return url;
+
+        return value.Trim();
+    }
+
+    private static bool IsUrlLike(string value)
+    {
+        return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains('.', StringComparison.Ordinal);
+    }
+
+    private static void CopyToClipboard(string text)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return;
+
+        var script = $$"""
+        Set-Clipboard -Value @'
+        {{text}}
+        '@
+        """;
+
+        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+        Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
     }
 
     private static string? TryFindInstalledApp(string appName)

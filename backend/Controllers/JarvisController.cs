@@ -554,6 +554,14 @@ Responda como se estivesse puxando assunto com Gabriel.
             lower.Contains("pesquisar no navegador") ||
             lower.Contains("procure no google") ||
             lower.Contains("pesquise no google") ||
+            lower.Contains("pesquise no youtube") ||
+            lower.Contains("procure no youtube") ||
+            lower.Contains("mande mensagem") ||
+            lower.Contains("manda mensagem") ||
+            lower.Contains("enviar mensagem") ||
+            lower.Contains("envie mensagem") ||
+            command.StartsWith("acesse ") ||
+            command.StartsWith("acessar ") ||
             command.StartsWith("digite ") ||
             command.StartsWith("escreva ") ||
             command.StartsWith("cole ")
@@ -770,16 +778,86 @@ Responda de forma natural.
         if (lower.Contains("procure no google") || lower.Contains("pesquise no google"))
             return _computer.SearchWeb(RemoveCommand(message, "Nexus", "procure no google", "pesquise no google"));
 
+        if (lower.Contains("pesquise no youtube") || lower.Contains("procure no youtube"))
+        {
+            var query = RemoveCommand(message, "Nexus", "pesquise no youtube", "procure no youtube", "por");
+            return _computer.OpenUrl("https://www.youtube.com/results?search_query=" + Uri.EscapeDataString(query));
+        }
+
+        if (lower.Contains("mande mensagem") || lower.Contains("manda mensagem") || lower.Contains("enviar mensagem") || lower.Contains("envie mensagem"))
+            return ExecuteMessageCommand(message);
+
         if (lower.StartsWith("digite ") || lower.StartsWith("escreva ") || lower.StartsWith("cole "))
             return _computer.PasteText(RemoveCommand(message, "Nexus", "digite", "escreva", "cole"));
 
         if (lower.Contains("pasta"))
             return _computer.OpenFolder(RemoveCommand(message, "Nexus", "abra a pasta", "abrir a pasta", "abre a pasta", "pasta"));
 
-        if (lower.Contains("http://") || lower.Contains("https://") || lower.Contains(".com") || lower.Contains(".br"))
-            return _computer.OpenUrl(RemoveCommand(message, "Nexus", "abra", "abrir", "abre", "acesse", "acessar"));
+        if (lower.Contains("http://") || lower.Contains("https://") || lower.Contains(".com") || lower.Contains(".br") || lower.StartsWith("acesse ") || lower.StartsWith("acessar "))
+            return _computer.OpenSite(RemoveCommand(message, "Nexus", "abra", "abrir", "abre", "acesse", "acessar", "site", "o site"));
 
-        return _computer.OpenApp(RemoveCommand(message, "Nexus", "abra o programa", "abrir o programa", "abre o programa", "abra", "abrir", "abre"));
+        var target = RemoveCommand(message, "Nexus", "abra o programa", "abrir o programa", "abre o programa", "abra", "abrir", "abre");
+        var siteResult = _computer.OpenSite(target);
+        if (siteResult.Success && siteResult.Target?.StartsWith("http", StringComparison.OrdinalIgnoreCase) == true)
+            return siteResult;
+
+        return _computer.OpenApp(target);
+    }
+
+    private ComputerActionResult ExecuteMessageCommand(string message)
+    {
+        var cleaned = RemoveCommand(
+            message,
+            "Nexus",
+            "mande mensagem para",
+            "manda mensagem para",
+            "enviar mensagem para",
+            "envie mensagem para",
+            "mande mensagem",
+            "manda mensagem",
+            "enviar mensagem",
+            "envie mensagem");
+
+        var separatorIndex = cleaned.IndexOf(':');
+        var separatorLength = 1;
+
+        if (separatorIndex < 0)
+        {
+            separatorIndex = cleaned.IndexOf(" dizendo ", StringComparison.OrdinalIgnoreCase);
+            separatorLength = " dizendo ".Length;
+        }
+
+        if (separatorIndex < 0)
+        {
+            separatorIndex = cleaned.IndexOf(" com o texto ", StringComparison.OrdinalIgnoreCase);
+            separatorLength = " com o texto ".Length;
+        }
+
+        if (separatorIndex < 0)
+        {
+            return new ComputerActionResult(
+                false,
+                "Para preparar mensagem, use: Nexus, mande mensagem para 11999999999: texto da mensagem.");
+        }
+
+        var recipient = cleaned[..separatorIndex]
+            .Replace("dizendo", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("com o texto", "", StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', '.', ',', ':', ';');
+
+        var text = cleaned[(separatorIndex + separatorLength)..]
+            .Replace("dizendo", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("com o texto", "", StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', '.', ',', ':', ';');
+
+        if (string.IsNullOrWhiteSpace(recipient) || string.IsNullOrWhiteSpace(text))
+        {
+            return new ComputerActionResult(
+                false,
+                "Faltou o destinatário ou o texto. Exemplo: Nexus, mande mensagem para 11999999999: estou chegando.");
+        }
+
+        return _computer.PrepareWhatsAppMessage(recipient, text);
     }
 
     private static string StripWakeWord(string message)
@@ -803,15 +881,20 @@ Responda de forma natural.
         Exemplo: Nexus, abra a pasta Downloads
 
         3. Abrir sites
-        Exemplo: Nexus, abra https://google.com
+        Exemplo: Nexus, abra o YouTube
+        Exemplo: Nexus, acesse Gmail
 
         4. Pesquisar no navegador
         Exemplo: Nexus, pesquise no navegador criar GPO para abertura de paginas
+        Exemplo: Nexus, pesquise no YouTube tutorial de GPO
 
         5. Digitar/colar texto na janela ativa
         Exemplo: Nexus, digite texto de teste
 
-        Atencao: antes de usar o comando digite, clique no campo correto. Eu colo o texto na janela ativa do Windows.
+        6. Preparar mensagens no WhatsApp
+        Exemplo: Nexus, mande mensagem para 11999999999: estou chegando
+
+        Atencao: antes de usar o comando digite, clique no campo correto. Para mensagens, eu deixo pronta para voce revisar e confirmar.
 
         Por seguranca, eu nao vou apagar arquivos, executar comandos destrutivos ou mexer em credenciais sem confirmacao explicita.
         """;

@@ -50,10 +50,22 @@ public class ComputerController : ControllerBase
         return Ok(_computer.OpenUrl(request.Text));
     }
 
+    [HttpPost("open-site")]
+    public IActionResult OpenSite([FromBody] ComputerTextRequest request)
+    {
+        return Ok(_computer.OpenSite(request.Text));
+    }
+
     [HttpPost("search-web")]
     public IActionResult SearchWeb([FromBody] ComputerTextRequest request)
     {
         return Ok(_computer.SearchWeb(request.Text));
+    }
+
+    [HttpPost("whatsapp-message")]
+    public IActionResult WhatsAppMessage([FromBody] ComputerMessageRequest request)
+    {
+        return Ok(_computer.PrepareWhatsAppMessage(request.Recipient, request.Message));
     }
 
     [HttpPost("paste")]
@@ -66,4 +78,10 @@ public class ComputerController : ControllerBase
 public class ComputerTextRequest
 {
     public string Text { get; set; } = "";
+}
+
+public class ComputerMessageRequest
+{
+    public string Recipient { get; set; } = "";
+    public string Message { get; set; } = "";
 }
