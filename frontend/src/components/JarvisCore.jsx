@@ -1,13 +1,11 @@
 import { motion } from "framer-motion";
 
 const orbitNodes = [
-  { className: "n1", size: 12, duration: 10, delay: 0 },
-  { className: "n3", size: 10, duration: 18, delay: 0.9 },
-  { className: "n5", size: 14, duration: 21, delay: 0.2 },
-  { className: "n6", size: 8, duration: 16, delay: 1.6 },
-  { className: "n8", size: 11, duration: 24, delay: 1.1 },
-  { className: "n10", size: 9, duration: 15, delay: 0.5 },
-  { className: "n12", size: 13, duration: 17, delay: 0.8 },
+  { className: "n1", size: 11, duration: 18, delay: 0 },
+  { className: "n3", size: 8, duration: 24, delay: 0.9 },
+  { className: "n5", size: 12, duration: 28, delay: 0.2 },
+  { className: "n8", size: 9, duration: 32, delay: 1.1 },
+  { className: "n12", size: 11, duration: 22, delay: 0.8 },
 ];
 
 function statusLabel(status) {
@@ -34,25 +32,21 @@ export default function NexusCore({ status = "online" }) {
       <div className="reactor-backdrop" />
       <motion.div
         className="reactor-shadow"
-        animate={{ opacity: isThinking ? [0.45, 0.82, 0.45] : [0.3, 0.52, 0.3] }}
-        transition={{ repeat: Infinity, duration: isThinking ? 1.8 : 5.6, ease: "easeInOut" }}
+        animate={{ opacity: isThinking ? [0.42, 0.68, 0.42] : [0.34, 0.46, 0.34] }}
+        transition={{ repeat: Infinity, duration: isThinking ? 2.6 : 7.5, ease: "easeInOut" }}
       />
 
       <motion.div
         className="reactor-outer-ring ring-a"
         animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: isThinking ? 14 : 28, ease: "linear" }}
+        transition={{ repeat: Infinity, duration: isThinking ? 24 : 46, ease: "linear" }}
       />
       <motion.div
         className="reactor-outer-ring ring-b"
         animate={{ rotate: -360 }}
-        transition={{ repeat: Infinity, duration: isThinking ? 18 : 40, ease: "linear" }}
+        transition={{ repeat: Infinity, duration: isThinking ? 30 : 64, ease: "linear" }}
       />
-      <motion.div
-        className="reactor-outer-ring ring-c"
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: isThinking ? 24 : 58, ease: "linear" }}
-      />
+      <div className="reactor-outer-ring ring-c" />
 
       <div className="reactor-orbits" aria-hidden="true">
         {orbitNodes.map((node) => (
@@ -77,8 +71,8 @@ export default function NexusCore({ status = "online" }) {
 
       <motion.div
         className="reactor-core-light"
-        animate={{ scale: statusPulse(status), opacity: status === "error" ? [0.6, 1, 0.65] : [0.9, 1, 0.92] }}
-        transition={{ repeat: Infinity, duration: isThinking ? 1.8 : 3.6, ease: "easeInOut" }}
+        animate={{ scale: statusPulse(status), opacity: status === "error" ? [0.7, 1, 0.75] : [0.92, 1, 0.94] }}
+        transition={{ repeat: Infinity, duration: isThinking ? 2.2 : 4.5, ease: "easeInOut" }}
       >
         <span />
       </motion.div>

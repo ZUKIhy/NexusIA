@@ -1690,3 +1690,115 @@ code {
   .docs-search button { grid-column: 1 / -1; }
   .docs-results, .docs-preview { min-height: auto; }
 }
+
+/* Performance pass: keep the HUD look, reduce paint-heavy effects. */
+body::before {
+  background-size: 120px 120px, 120px 120px, 100% 100%;
+  mask-image: radial-gradient(circle at 50% 45%, black, transparent 68%);
+  opacity: 0.32;
+}
+
+body::after,
+.hero-panel::after,
+.reactor-scan {
+  display: none;
+}
+
+.sidebar,
+.hero-panel,
+.panel,
+.page {
+  backdrop-filter: none;
+}
+
+.hero-panel,
+.panel,
+.page {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 0 20px rgba(56, 189, 248, 0.03),
+    0 14px 34px rgba(0, 0, 0, 0.26);
+}
+
+.reactor-core {
+  width: min(520px, 92%);
+  height: 470px;
+  contain: layout paint;
+}
+
+.reactor-core::before {
+  inset: 44px;
+  box-shadow:
+    inset 0 0 38px rgba(56, 189, 248, 0.09),
+    0 0 36px rgba(13, 33, 87, 0.34);
+}
+
+.reactor-core::after {
+  filter: blur(8px);
+}
+
+.reactor-backdrop {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.2), transparent 5%),
+    radial-gradient(circle at 50% 48%, rgba(255, 154, 70, 0.5), transparent 13%),
+    radial-gradient(circle at 50% 48%, rgba(249, 115, 22, 0.2), transparent 24%),
+    radial-gradient(circle at 50% 48%, rgba(56, 189, 248, 0.11), transparent 40%),
+    radial-gradient(circle at 50% 48%, rgba(4, 10, 24, 0) 50%, rgba(2, 5, 14, 0.58) 73%, rgba(0, 0, 0, 0.82) 100%);
+}
+
+.reactor-outer-ring.ring-a {
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.09);
+}
+
+.reactor-outer-ring.ring-b {
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.1);
+}
+
+.reactor-cone {
+  filter: blur(2px);
+}
+
+.reactor-core-light {
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.94),
+    0 0 36px rgba(255, 147, 55, 0.74),
+    0 0 70px rgba(255, 92, 45, 0.34);
+}
+
+.reactor-core.thinking .reactor-core-light,
+.reactor-core.speaking .reactor-core-light {
+  box-shadow:
+    0 0 22px rgba(255, 255, 255, 0.96),
+    0 0 44px rgba(255, 145, 56, 0.82),
+    0 0 76px rgba(255, 92, 45, 0.42);
+}
+
+.stat-card,
+.message,
+.doc-result-card,
+.procedure-card,
+.procedure-stats div,
+.markdown-preview {
+  background: rgba(1, 8, 18, 0.74);
+}
+
+.icon-button,
+.send-button,
+.wake-button,
+.docs-search button,
+.settings-action,
+.docs-toolbar button,
+.doc-result-actions button,
+.procedure-actions button,
+.small-action-button {
+  box-shadow:
+    inset 0 0 8px rgba(255, 255, 255, 0.018),
+    0 0 8px rgba(249, 115, 22, 0.07);
+}
+
+@media (max-width: 700px) {
+  .reactor-core {
+    width: min(100%, 340px);
+    height: 320px;
+  }
+}
