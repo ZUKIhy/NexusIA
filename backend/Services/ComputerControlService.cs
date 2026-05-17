@@ -285,6 +285,9 @@ public class ComputerControlService
             .Replace("acessar", "", StringComparison.OrdinalIgnoreCase)
             .Trim();
 
+        if (target.StartsWith("o ", StringComparison.OrdinalIgnoreCase) || target.StartsWith("a ", StringComparison.OrdinalIgnoreCase))
+            target = target[2..].Trim();
+
         if (_knownSites.TryGetValue(target, out var url))
             return url;
 
@@ -371,7 +374,17 @@ public class ComputerControlService
 
         foreach (var root in startMenuRoots.Where(Directory.Exists))
         {
-            var shortcuts = Directory.GetFiles(root, "*.lnk", SearchOption.AllDirectories);
+            string[] shortcuts;
+
+            try
+            {
+                shortcuts = Directory.GetFiles(root, "*.lnk", SearchOption.AllDirectories);
+            }
+            catch
+            {
+                continue;
+            }
+
             var match = shortcuts
                 .Select(path => new
                 {
