@@ -167,6 +167,33 @@ export async function getGmailBriefing() {
   return data;
 }
 
+export async function getZabbixStatus() {
+  const { data } = await api.get("/api/zabbix/status");
+  return data;
+}
+
+export async function getZabbixHosts() {
+  const { data } = await api.get("/api/zabbix/hosts");
+  return data;
+}
+
+export async function getZabbixProblems(minSeverity = "") {
+  const { data } = await api.get("/api/zabbix/problems", {
+    params: minSeverity === "" ? {} : { minSeverity },
+  });
+  return data;
+}
+
+export async function generateZabbixReport(payload = {}) {
+  const { data } = await api.post("/api/zabbix/report", payload);
+  return data;
+}
+
+export async function acknowledgeZabbixEvent(payload) {
+  const { data } = await api.post("/api/zabbix/acknowledge", payload);
+  return data;
+}
+
 export async function getSpotifyStatus() {
   const { data } = await api.get("/api/spotify/status");
   return data;

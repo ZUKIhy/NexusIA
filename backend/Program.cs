@@ -39,6 +39,7 @@ builder.Services.AddSingleton<TodayService>();
 builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddSingleton<GoogleCalendarService>();
 builder.Services.AddSingleton<GmailService>();
+builder.Services.AddSingleton<ZabbixService>();
 builder.Services.AddSingleton<OperationService>();
 builder.Services.AddHostedService<AlertBackgroundService>();
 builder.Services.AddHostedService<SpotifyLearningBackgroundService>();
@@ -75,6 +76,8 @@ app.MapGet("/", () => new
         "/api/integrations/telegram/send",
         "/api/integrations/calendar/briefing",
         "/api/integrations/gmail/briefing",
+        "/api/zabbix/status",
+        "/api/zabbix/problems",
         "/hubs/nexus"
     }
 });

@@ -372,3 +372,37 @@ Endpoints novos:
 - `GET /api/integrations/gmail/briefing`
 
 Variaveis estao documentadas em `.env.example` e `backend/.env.example`. Nenhum token deve ser versionado.
+
+## Zabbix
+
+O Nexus possui uma camada Zabbix via API JSON-RPC:
+
+- Consulta status da API.
+- Lista hosts monitorados.
+- Lista problemas ativos por severidade.
+- Classifica problemas por severidade e acknowledgement.
+- Gera relatorio Markdown.
+- Salva historico em `vault/07_Nexus/Zabbix/`.
+- Registra acoes em `vault/07_Nexus/zabbix-actions.md`.
+- Reconhece eventos com `event.acknowledge`.
+- Envia alertas criticos pelo Telegram quando solicitado.
+- Exibe painel `/zabbix`.
+- Responde comandos de chat e respeita modo operacao.
+
+Endpoints:
+
+- `GET /api/zabbix/status`
+- `GET /api/zabbix/hosts`
+- `GET /api/zabbix/problems?minSeverity=4`
+- `POST /api/zabbix/report`
+- `POST /api/zabbix/acknowledge`
+
+Variaveis:
+
+- `ZABBIX_ENABLED`
+- `ZABBIX_API_URL`
+- `ZABBIX_API_TOKEN`
+- `ZABBIX_USERNAME`
+- `ZABBIX_PASSWORD`
+- `ZABBIX_HOST_LIMIT`
+- `ZABBIX_PROBLEM_LIMIT`

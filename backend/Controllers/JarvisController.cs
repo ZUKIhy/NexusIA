@@ -28,6 +28,7 @@ public class NexusController : ControllerBase
     private readonly SpotifyService _spotify;
     private readonly SpotifyLearningService _spotifyLearning;
     private readonly TodayService _today;
+    private readonly ZabbixService _zabbix;
     private readonly IHubContext<NexusHub> _hub;
 
     public NexusController(
@@ -46,6 +47,7 @@ public class NexusController : ControllerBase
         SpotifyService spotify,
         SpotifyLearningService spotifyLearning,
         TodayService today,
+        ZabbixService zabbix,
         IHubContext<NexusHub> hub)
     {
         _openAI = openAI;
@@ -63,6 +65,7 @@ public class NexusController : ControllerBase
         _spotify = spotify;
         _spotifyLearning = spotifyLearning;
         _today = today;
+        _zabbix = zabbix;
         _hub = hub;
     }
 
@@ -241,6 +244,12 @@ public class NexusController : ControllerBase
 
         if (intent == "today_briefing")
             return await TodayBriefingAnswer(message, intent);
+
+        if (intent == "zabbix_status")
+            return await ZabbixStatusAnswer(message, intent);
+
+        if (intent == "zabbix_report")
+            return await ZabbixReportAnswer(message, intent);
 
         if (intent == "auto_knowledge")
             return await AutoKnowledgeAnswer(message, intent);
@@ -655,6 +664,42 @@ Comando:
         {
             answer = "Nao consegui consultar a previsao do tempo agora. A API da Open-Meteo pode estar indisponivel ou sem conexao no momento.";
         }
+
+        return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> ZabbixStatusAnswer(string message, string intent)
+    {
+        var status = await _zabbix.GetStatusAsync();
+        var problems = await _zabbix.GetProblemsAsync(4);
+        var answer =
+            $"Status Zabbix: {status.Status}\n" +
+            $"Configurado: {(status.Configured ? "sim" : "nao")}\n" +
+            $"Versao: {status.Version}\n" +
+            $"Autenticacao: {status.AuthMode}\n" +
+            $"Mensagem: {status.Message}\n\n" +
+            $"Problemas High/Disaster ativos: {problems.Count}";
+
+        if (_operation.IsOperationMode())
+            answer = _operation.BuildOperationFrame(answer, "Abrir /zabbix e validar os problemas criticos antes de reconhecer eventos.");
+
+        return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> ZabbixReportAnswer(string message, string intent)
+    {
+        var report = await _zabbix.GenerateReportAsync(ExtractZabbixMinimumSeverity(message), saveToObsidian: true, notifyCritical: true);
+        var answer =
+            $"{report.Summary}\n\n" +
+            $"Recomendacao: {report.Recommendation}\n\n" +
+            "Principais problemas:\n" +
+            (report.Problems.Count == 0
+                ? "- Nenhum problema ativo encontrado."
+                : string.Join("\n", report.Problems.Take(8).Select(problem =>
+                    $"- [{problem.SeverityName}] {problem.Name} | {problem.HostName} | EventId {problem.EventId}")));
+
+        if (_operation.IsOperationMode())
+            answer = _operation.BuildOperationFrame(answer, "Reconhecer eventos em atendimento e registrar evidencias no chamado.");
 
         return await LocalAnswer(message, answer, intent);
     }
@@ -1144,6 +1189,18 @@ Responda como se estivesse puxando assunto com Gabriel.
             lower.Contains("como está o dia")
         )
             return "today_briefing";
+
+        if (
+            lower.Contains("zabbix") &&
+            (lower.Contains("relatorio") || lower.Contains("relatÃ³rio") || lower.Contains("problemas") || lower.Contains("alertas") || lower.Contains("criticos") || lower.Contains("crÃ­ticos"))
+        )
+            return "zabbix_report";
+
+        if (
+            lower.Contains("zabbix") &&
+            (lower.Contains("status") || lower.Contains("monitoramento") || lower.Contains("hosts"))
+        )
+            return "zabbix_status";
 
         if (
             lower.Contains("status da rede") ||
@@ -1696,6 +1753,25 @@ Responda de forma natural.
         return match.Success && int.TryParse(match.Value, out var value)
             ? Math.Clamp(value, 0, 100)
             : null;
+    }
+
+    private static int? ExtractZabbixMinimumSeverity(string message)
+    {
+        var lower = message.ToLowerInvariant();
+
+        if (lower.Contains("disaster") || lower.Contains("desastre"))
+            return 5;
+
+        if (lower.Contains("high") || lower.Contains("alta") || lower.Contains("critico") || lower.Contains("crÃ­tico"))
+            return 4;
+
+        if (lower.Contains("average") || lower.Contains("media") || lower.Contains("mÃ©dia"))
+            return 3;
+
+        if (lower.Contains("warning") || lower.Contains("aviso"))
+            return 2;
+
+        return null;
     }
 
     private static string BuildDocsAnswer(string query, IReadOnlyList<MarkdownSearchResult> results)

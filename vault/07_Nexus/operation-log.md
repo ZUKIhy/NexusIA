@@ -26,3 +26,18 @@ Resultado principal: Home conectada ao briefing real, endpoints de integracoes c
 Acao: backup_pos_release
 Consulta: Release Nexus V2 - Cockpit e Integracoes
 Resultado principal: Backup local final criado em Backups/nexus-v2-post-release-20260518-121314.zip.
+
+## 2026-05-18 12:31:23
+Acao: backup_pre_zabbix
+Consulta: Nexus como camada inteligente sobre Zabbix
+Resultado principal: Backup local criado em Backups/nexus-zabbix-pre-release-20260518-123123.zip.
+
+## 2026-05-18 12:38:00
+Acao: zabbix_layer
+Consulta: API JSON-RPC Zabbix, painel /zabbix, Obsidian, Telegram e modo operacao
+Resultado principal: Servico Zabbix, controller, frontend e documentacao adicionados; endpoints testados em modo desabilitado.
+
+## 2026-05-18 12:41:16
+Acao: backup_pos_zabbix
+Consulta: Nexus como camada inteligente sobre Zabbix
+Resultado principal: Backup local final criado em Backups/nexus-zabbix-post-release-20260518-124116.zip.

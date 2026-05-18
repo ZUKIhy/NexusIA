@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Moon, Music2, Network, ScrollText, Settings, SunMedium, Terminal, Zap } from "lucide-react";
+import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Moon, Music2, Network, ScrollText, Settings, ServerCog, SunMedium, Terminal, Zap } from "lucide-react";
 import Dashboard from "./pages/Dashboard.jsx";
 import Logs from "./pages/Logs.jsx";
 import SettingsPage from "./pages/Settings.jsx";
@@ -13,6 +13,7 @@ import HomeAssistant from "./pages/HomeAssistant.jsx";
 import NetworkMonitor from "./pages/NetworkMonitor.jsx";
 import Today from "./pages/Today.jsx";
 import Media from "./pages/Media.jsx";
+import Zabbix from "./pages/Zabbix.jsx";
 
 const THEMES = [
   { key: "arc", label: "Arc", icon: <Zap size={14} /> },
@@ -63,6 +64,7 @@ export default function App() {
           <NavItem to="/home-assistant" icon={<HousePlug size={18} />} label="Home Assistant" />
           <NavItem to="/media" icon={<Music2 size={18} />} label="Media" />
           <NavItem to="/network" icon={<Network size={18} />} label="Network" />
+          <NavItem to="/zabbix" icon={<ServerCog size={18} />} label="Zabbix" />
           <NavItem to="/tasks" icon={<ClipboardList size={18} />} label="Tasks" />
           <NavItem to="/logs" icon={<ScrollText size={18} />} label="Logs" />
           <NavItem to="/system" icon={<Terminal size={18} />} label="System" />
@@ -85,6 +87,7 @@ export default function App() {
           <Route path="/home-assistant" element={<HomeAssistant />} />
           <Route path="/media" element={<Media />} />
           <Route path="/network" element={<NetworkMonitor />} />
+          <Route path="/zabbix" element={<Zabbix />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/system" element={<System />} />

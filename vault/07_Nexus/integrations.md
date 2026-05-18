@@ -23,6 +23,7 @@
 - Google Calendar: briefing pronto; depende de GOOGLE_ACCESS_TOKEN.
 - Gmail: resumo de emails pronto; depende de GOOGLE_ACCESS_TOKEN.
 - Home V2: conectada ao briefing real e ao status das integracoes.
+- Zabbix: painel, relatorios, problemas ativos, hosts e acknowledge via API JSON-RPC.
 
 ## Endpoints V2
 - GET /api/integrations/status
@@ -32,3 +33,8 @@
 - POST /api/integrations/telegram/command
 - GET /api/integrations/calendar/briefing
 - GET /api/integrations/gmail/briefing
+- GET /api/zabbix/status
+- GET /api/zabbix/hosts
+- GET /api/zabbix/problems
+- POST /api/zabbix/report
+- POST /api/zabbix/acknowledge

@@ -226,3 +226,59 @@ Google Calendar usa `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_ACCESS_TOKEN` e `GOOGLE_C
 Gmail usa `GMAIL_ENABLED`, `GOOGLE_ACCESS_TOKEN`, `GMAIL_USER_ID` e `GMAIL_BRIEFING_QUERY` para resumir emails recentes.
 
 Sem credenciais, os endpoints retornam `configured=false` e mensagens de integracao nao configurada, sem expor segredos.
+
+## Zabbix
+
+O Nexus agora pode operar como camada inteligente em cima do Zabbix.
+
+Fontes oficiais usadas:
+
+- `https://www.zabbix.com/documentation/current/en/manual/api`
+- `https://www.zabbix.com/documentation/current/en/manual/api/reference/problem/get`
+- `https://www.zabbix.com/documentation/current/en/manual/api/reference/event/acknowledge`
+- `https://www.zabbix.com/documentation/current/en/manual/api/reference/host/get`
+
+Arquivos:
+
+```text
+backend/Services/ZabbixService.cs
+backend/Controllers/ZabbixController.cs
+frontend/src/pages/Zabbix.jsx
+vault/07_Nexus/zabbix-settings.md
+vault/07_Nexus/zabbix-history.md
+vault/07_Nexus/zabbix-actions.md
+```
+
+Configuracao:
+
+```env
+ZABBIX_ENABLED=true
+ZABBIX_API_URL=https://zabbix.example.com/zabbix/api_jsonrpc.php
+ZABBIX_API_TOKEN=
+ZABBIX_USERNAME=
+ZABBIX_PASSWORD=
+ZABBIX_HOST_LIMIT=100
+ZABBIX_PROBLEM_LIMIT=100
+```
+
+Preferir `ZABBIX_API_TOKEN`. Se usar `ZABBIX_USERNAME` e `ZABBIX_PASSWORD`, o Nexus faz `user.login` e tenta `user.logout` no final de cada operacao autenticada para evitar sessoes abertas.
+
+Endpoints:
+
+```text
+GET  /api/zabbix/status
+GET  /api/zabbix/hosts
+GET  /api/zabbix/problems?minSeverity=4
+POST /api/zabbix/report
+POST /api/zabbix/acknowledge
+```
+
+O painel `/zabbix` mostra status da API, hosts, problemas filtrados por severidade, relatorio para Obsidian, envio de alerta critico por Telegram e acknowledge com mensagem.
+
+O chat entende comandos como:
+
+```text
+Nexus, status do Zabbix.
+Nexus, gerar relatorio do Zabbix.
+Nexus, mostre alertas criticos do Zabbix.
+```
