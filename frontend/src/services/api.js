@@ -78,3 +78,71 @@ export async function getComputerStatus() {
   const { data } = await api.get("/api/computer/status");
   return data;
 }
+
+export async function getHomeAssistantStatus() {
+  const { data } = await api.get("/api/home/status");
+  return data;
+}
+
+export async function getHomeAssistantStates() {
+  const { data } = await api.get("/api/home/states");
+  return data;
+}
+
+export async function getHomeAssistantState(entityId) {
+  const { data } = await api.get("/api/home/state", {
+    params: { entityId },
+  });
+
+  return data;
+}
+
+export async function turnOnHomeEntity(entityId) {
+  const { data } = await api.post("/api/home/turn-on", { entityId });
+  return data;
+}
+
+export async function turnOffHomeEntity(entityId) {
+  const { data } = await api.post("/api/home/turn-off", { entityId });
+  return data;
+}
+
+export async function toggleHomeEntity(entityId) {
+  const { data } = await api.post("/api/home/toggle", { entityId });
+  return data;
+}
+
+export async function setHomeLightBrightness(entityId, brightness) {
+  const { data } = await api.post("/api/home/brightness", { entityId, brightness });
+  return data;
+}
+
+export async function getNetworkStatus() {
+  const { data } = await api.get("/api/network/status");
+  return data;
+}
+
+export async function getNetworkDevices() {
+  const { data } = await api.get("/api/network/devices");
+  return data;
+}
+
+export async function checkNetwork() {
+  const { data } = await api.post("/api/network/check");
+  return data;
+}
+
+export async function getUnknownNetworkDevices() {
+  const { data } = await api.get("/api/network/unknown");
+  return data;
+}
+
+export async function resolveUnknownNetworkDevice(payload) {
+  const { data } = await api.post("/api/network/unknown/resolve", payload);
+  return data;
+}
+
+export async function getTodayBriefing() {
+  const { data } = await api.get("/api/today");
+  return data;
+}

@@ -62,7 +62,10 @@ public class ObsidianService
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
         if (!File.Exists(path))
+        {
             File.WriteAllText(path, initialContent);
+            InvalidateMarkdownCache();
+        }
     }
 
     public void AppendToFile(string relativePath, string content)
@@ -73,6 +76,7 @@ public class ObsidianService
         lock (_fileLock)
         {
             File.AppendAllText(path, content);
+            InvalidateMarkdownCache();
         }
     }
 
@@ -137,6 +141,15 @@ public class ObsidianService
             _markdownCacheBuiltAt = DateTime.UtcNow;
 
             return _markdownCache;
+        }
+    }
+
+    private void InvalidateMarkdownCache()
+    {
+        lock (_cacheLock)
+        {
+            _markdownCache = null;
+            _markdownCacheBuiltAt = DateTime.MinValue;
         }
     }
 
@@ -216,7 +229,7 @@ public class ObsidianService
         if (IsStopWord(normalized))
             yield break;
 
-        if (normalized is "como" or "sobre" or "procure" or "busque" or "buscar" or "pesquise" or "pesquisar" or "procedimento" or "documento" or "obsidian" or "obsidia" or "criar" or "crie" or "fazer" or "faça" or "para")
+        if (normalized is "como" or "sobre" or "procure" or "busque" or "buscar" or "pesquise" or "pesquisar" or "procedimento" or "documento" or "obsidian" or "obsidia" or "criar" or "crie" or "fazer" or "faça" or "para" or "gerar" or "gere" or "gerado" or "gerada" or "novo" or "nova")
             yield break;
 
         if (normalized is "limpar" or "limpeza")
@@ -239,7 +252,8 @@ public class ObsidianService
             "responda" or "explique" or "explicar" or "frase" or "conceito" or "resuma" or "resumir" or
             "significa" or "significado" or "termo" or "inexistente" or
             "procedimento" or "documento" or "documentacao" or "documentação" or
-            "nexus" or "obsidian" or "obsidia" or "criar" or "crie" or "fazer" or "faca" or "faça" or "faÃ§a";
+            "nexus" or "obsidian" or "obsidia" or "criar" or "crie" or "fazer" or "faca" or "faça" or "faÃ§a" or
+            "gerar" or "gere" or "gerado" or "gerada" or "novo" or "nova";
     }
 
     private static string ExtractTitle(string content, string relativePath)

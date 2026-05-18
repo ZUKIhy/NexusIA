@@ -24,10 +24,17 @@ builder.Services.AddSingleton<MemoryService>();
 builder.Services.AddSingleton<TaskService>();
 builder.Services.AddSingleton<OpenAIService>();
 builder.Services.AddSingleton<OllamaService>();
+builder.Services.AddSingleton<ClaudeService>();
 builder.Services.AddSingleton<ElevenLabsService>();
 builder.Services.AddSingleton<ComputerControlService>();
 builder.Services.AddSingleton<DocumentIndexService>();
+builder.Services.AddSingleton<AutoKnowledgeService>();
+builder.Services.AddSingleton<HomeAssistantService>();
+builder.Services.AddSingleton<NetworkMonitorService>();
+builder.Services.AddSingleton<AlertService>();
+builder.Services.AddSingleton<TodayService>();
 builder.Services.AddSingleton<OperationService>();
+builder.Services.AddHostedService<AlertBackgroundService>();
 
 var app = builder.Build();
 
@@ -46,6 +53,9 @@ app.MapGet("/", () => new
         "/api/memory",
         "/api/tasks",
         "/api/logs",
+        "/api/home/status",
+        "/api/network/status",
+        "/api/today",
         "/hubs/nexus"
     }
 });

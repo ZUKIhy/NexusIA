@@ -30,6 +30,7 @@ public class OpenAIService
     public async Task<string> AskAsync(string message)
     {
         var docs = _obsidianService.SearchMarkdownDetailed(message)
+            .Where(result => IsRelevantKnowledgeResult(message, result))
             .Take(3)
             .ToList();
 
@@ -158,6 +159,7 @@ Mensagem do Gabriel:
         var memory = _memoryService.Search(message);
         var tasks = _taskService.ReadAll();
         var docs = _obsidianService.SearchMarkdownDetailed(message)
+            .Where(result => IsRelevantKnowledgeResult(message, result))
             .Take(3)
             .Select(result => $"Arquivo: {result.Path}\nTitulo: {result.Title}\nTrecho: {result.Snippet}");
 
@@ -220,6 +222,57 @@ Conteudo criado automaticamente pelo Nexus apos nao encontrar resposta direta no
 
         answer += "Use a pagina Docs para abrir o arquivo completo. Se quiser, posso transformar esse conteudo em procedimento padronizado.";
         return answer;
+    }
+
+    private static bool IsRelevantKnowledgeResult(string query, MarkdownSearchResult result)
+    {
+        var terms = ExtractSpecificTerms(query);
+
+        if (terms.Length == 0)
+            return result.Score >= 8;
+
+        var searchable = NormalizeSearchText($"{result.Path} {result.Title} {result.Snippet}");
+        var matches = terms.Count(term => searchable.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        return terms.Length == 1 ? matches == 1 : matches == terms.Length;
+    }
+
+    private static string[] ExtractSpecificTerms(string text)
+    {
+        var normalized = NormalizeSearchText(text);
+
+        return Regex.Matches(normalized, @"[a-z0-9]+")
+            .Select(match => match.Value)
+            .Where(term => term.Length > 2 || term is "vm" or "ct")
+            .Where(term => !IsKnowledgeStopWord(term))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool IsKnowledgeStopWord(string term)
+    {
+        return term is
+            "nexus" or "como" or "fazer" or "faco" or "faca" or "gerar" or "criar" or
+            "uma" or "novo" or "nova" or "para" or "sobre" or "passo" or "ensine" or
+            "explique" or "configurar" or "instalar";
+    }
+
+    private static string NormalizeSearchText(string text)
+    {
+        return text
+            .ToLowerInvariant()
+            .Replace("á", "a")
+            .Replace("à", "a")
+            .Replace("ã", "a")
+            .Replace("â", "a")
+            .Replace("é", "e")
+            .Replace("ê", "e")
+            .Replace("í", "i")
+            .Replace("ó", "o")
+            .Replace("ô", "o")
+            .Replace("õ", "o")
+            .Replace("ú", "u")
+            .Replace("ç", "c");
     }
 
     private static string NormalizeSnippet(string snippet)

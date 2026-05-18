@@ -37,6 +37,7 @@ public class SystemController : ControllerBase
                 configured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 status = "configurada; usada apenas como ultimo recurso"
             },
+            claude = BuildClaudeStatus(),
             backup = BuildBackupStatus(),
             autostart = System.IO.File.Exists(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.Startup),
@@ -73,6 +74,24 @@ public class SystemController : ControllerBase
             markdownDocuments = files.Length,
             lastUpdate = latest?.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
             lastIndex = SafeFileTime(_obsidian.GetFullPath("07_Nexus/document-index.json"))
+        };
+    }
+
+    private static object BuildClaudeStatus()
+    {
+        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? "";
+        var configured = !string.IsNullOrWhiteSpace(apiKey) &&
+                         !apiKey.Equals("coloque_sua_chave_aqui", StringComparison.OrdinalIgnoreCase);
+
+        return new
+        {
+            enabled = (Environment.GetEnvironmentVariable("CLAUDE_ENABLED") ?? "false").Equals("true", StringComparison.OrdinalIgnoreCase),
+            configured,
+            model = Environment.GetEnvironmentVariable("CLAUDE_MODEL") ?? "",
+            useForChat = (Environment.GetEnvironmentVariable("CLAUDE_USE_FOR_CHAT") ?? "false").Equals("true", StringComparison.OrdinalIgnoreCase),
+            useForStandardize = (Environment.GetEnvironmentVariable("CLAUDE_USE_FOR_STANDARDIZE") ?? "false").Equals("true", StringComparison.OrdinalIgnoreCase),
+            useForChecklist = (Environment.GetEnvironmentVariable("CLAUDE_USE_FOR_CHECKLIST") ?? "false").Equals("true", StringComparison.OrdinalIgnoreCase),
+            useForReports = (Environment.GetEnvironmentVariable("CLAUDE_USE_FOR_REPORTS") ?? "false").Equals("true", StringComparison.OrdinalIgnoreCase)
         };
     }
 

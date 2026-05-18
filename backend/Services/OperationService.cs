@@ -5,10 +5,14 @@ namespace NexusBackend.Services;
 public class OperationService
 {
     private readonly ObsidianService _obsidian;
+    private readonly ClaudeService _claude;
+    private readonly OllamaService _ollama;
 
-    public OperationService(ObsidianService obsidian)
+    public OperationService(ObsidianService obsidian, ClaudeService claude, OllamaService ollama)
     {
         _obsidian = obsidian;
+        _claude = claude;
+        _ollama = ollama;
         EnsureOperationFiles();
     }
 
@@ -108,20 +112,80 @@ ativo
         Log(action, "-", result);
     }
 
-    public string GenerateReport()
+    public async Task<string> GenerateReport()
     {
         RegisterAction("relatorio_atendimento", "Relatório de atendimento gerado");
-        return BuildOperationFrame(
-            $"Relatório de atendimento gerado com base na sessão atual.\n\n{TrimForChat(_obsidian.ReadFile("07_Nexus/current-session.md"))}",
-            "Revisar o relatório, complementar evidências e registrar no chamado.");
+        var sessionContent = TrimForChat(_obsidian.ReadFile("07_Nexus/current-session.md"));
+        var polished = await PolishWithAi(BuildReportPrompt(sessionContent));
+        var body = string.IsNullOrWhiteSpace(polished)
+            ? $"Relatório de atendimento gerado com base na sessão atual.\n\n{sessionContent}"
+            : polished;
+        return BuildOperationFrame(body, "Revisar o relatório, complementar evidências e registrar no chamado.");
     }
 
-    public string GenerateHandover()
+    public async Task<string> GenerateHandover()
     {
         RegisterAction("passagem_turno", "Passagem de turno criada");
-        return BuildOperationFrame(
-            $"Passagem de turno criada com base na sessão atual.\n\n{TrimForChat(_obsidian.ReadFile("07_Nexus/current-session.md"))}",
-            "Enviar para o responsável do próximo turno e anexar evidências.");
+        var sessionContent = TrimForChat(_obsidian.ReadFile("07_Nexus/current-session.md"));
+        var polished = await PolishWithAi(BuildHandoverPrompt(sessionContent));
+        var body = string.IsNullOrWhiteSpace(polished)
+            ? $"Passagem de turno criada com base na sessão atual.\n\n{sessionContent}"
+            : polished;
+        return BuildOperationFrame(body, "Enviar para o responsável do próximo turno e anexar evidências.");
+    }
+
+    private async Task<string?> PolishWithAi(string prompt)
+    {
+        var useClaude = (Environment.GetEnvironmentVariable("CLAUDE_USE_FOR_REPORTS") ?? "false")
+            .Equals("true", StringComparison.OrdinalIgnoreCase);
+
+        string? answer = null;
+
+        if (useClaude)
+            answer = await _claude.AskAsync(prompt, 4096);
+
+        if (string.IsNullOrWhiteSpace(answer))
+            answer = await _ollama.AskAsync(prompt);
+
+        return answer;
+    }
+
+    private static string BuildReportPrompt(string sessionContent)
+    {
+        return $@"
+Voce e Nexus, assistente tecnico de Gabriel.
+
+Gere um relatorio de atendimento profissional em Markdown com base no conteudo da sessao atual abaixo.
+
+Regras:
+- Responda apenas com Markdown.
+- Nao invente dados que nao estao na sessao.
+- Mantenha sigilo: nao exponha credenciais.
+- Estruture em: Resumo, Procedimentos consultados, Acoes realizadas, Pendencias, Proxima acao.
+
+Sessao atual:
+
+{sessionContent}
+";
+    }
+
+    private static string BuildHandoverPrompt(string sessionContent)
+    {
+        return $@"
+Voce e Nexus, assistente tecnico de Gabriel.
+
+Gere uma passagem de turno clara em Markdown com base na sessao atual abaixo.
+
+Regras:
+- Responda apenas com Markdown.
+- Foque no que o proximo turno precisa saber para continuar.
+- Nao invente dados que nao estao na sessao.
+- Estruture em: Contexto, O que ja foi feito, Pendencias, Riscos/Atencao, Proxima acao recomendada.
+
+Sessao atual:
+
+{sessionContent}
+";
     }
 
     public void Log(string action, string query, string result)

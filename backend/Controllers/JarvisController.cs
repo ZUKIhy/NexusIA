@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.SignalR;
 using NexusBackend.Hubs;
 using NexusBackend.Models;
 using NexusBackend.Services;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace NexusBackend.Controllers;
 
@@ -19,6 +21,10 @@ public class NexusController : ControllerBase
     private readonly ComputerControlService _computer;
     private readonly OperationService _operation;
     private readonly OllamaService _ollama;
+    private readonly AutoKnowledgeService _autoKnowledge;
+    private readonly HomeAssistantService _home;
+    private readonly NetworkMonitorService _network;
+    private readonly TodayService _today;
     private readonly IHubContext<NexusHub> _hub;
 
     public NexusController(
@@ -30,6 +36,10 @@ public class NexusController : ControllerBase
         ComputerControlService computer,
         OperationService operation,
         OllamaService ollama,
+        AutoKnowledgeService autoKnowledge,
+        HomeAssistantService home,
+        NetworkMonitorService network,
+        TodayService today,
         IHubContext<NexusHub> hub)
     {
         _openAI = openAI;
@@ -40,6 +50,10 @@ public class NexusController : ControllerBase
         _computer = computer;
         _operation = operation;
         _ollama = ollama;
+        _autoKnowledge = autoKnowledge;
+        _home = home;
+        _network = network;
+        _today = today;
         _hub = hub;
     }
 
@@ -119,10 +133,10 @@ public class NexusController : ControllerBase
             return await LocalAnswer(message, _operation.StartSession(CleanAttendanceCommand(message)), intent);
 
         if (intent == "attendance_report")
-            return await LocalAnswer(message, _operation.GenerateReport(), intent);
+            return await LocalAnswer(message, await _operation.GenerateReport(), intent);
 
         if (intent == "shift_handoff")
-            return await LocalAnswer(message, _operation.GenerateHandover(), intent);
+            return await LocalAnswer(message, await _operation.GenerateHandover(), intent);
 
         if (intent == "presence_check")
         {
@@ -197,6 +211,24 @@ public class NexusController : ControllerBase
             _tasks.Create(taskText);
             await _hub.Clients.All.SendAsync("nexus:task_created", new { content = taskText });
         }
+
+        if (intent == "home_assistant_control")
+            return await HomeAssistantAnswer(message, intent);
+
+        if (intent == "home_assistant_confirm")
+            return await HomeAssistantConfirmAnswer(message, intent);
+
+        if (intent == "network_status")
+            return await NetworkStatusAnswer(message, intent);
+
+        if (intent == "today_briefing")
+            return await TodayBriefingAnswer(message, intent);
+
+        if (intent == "auto_knowledge")
+            return await AutoKnowledgeAnswer(message, intent);
+
+        if (intent == "auto_knowledge_force")
+            return await AutoKnowledgeForceAnswer(message, intent);
 
         if (intent == "procedure_answer")
             return await ProcedureAnswer(message, intent);
@@ -334,6 +366,443 @@ public class NexusController : ControllerBase
         }
 
         return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> AutoKnowledgeAnswer(string message, string intent)
+    {
+        var query = CleanAutoKnowledgeCommand(message);
+        var existingResults = _obsidian.SearchMarkdownDetailed(query)
+            .Where(result => IsUsableKnowledgeResult(result.Path))
+            .Where(result => IsRelevantKnowledgeResult(query, result))
+            .Take(3)
+            .ToList();
+
+        if (existingResults.Count > 0)
+        {
+            var answer =
+                $"Encontrei conteudo na sua base local sobre: {query}\n\n" +
+                string.Join("\n\n---\n\n", existingResults.Select(result =>
+                    $"Arquivo: {result.Path}\nTitulo: {result.Title}\n{NormalizeSnippet(result.Snippet)}"));
+
+            return await LocalAnswer(message, answer, "auto_knowledge_found_in_obsidian");
+        }
+
+        var generated = await _autoKnowledge.GenerateAndSaveAsync(message);
+
+        if (generated is null)
+        {
+            var fallback = "Nao encontrei isso no Obsidian e nao consegui gerar uma nova nota com o Ollama agora.";
+            return await LocalAnswer(message, fallback, "auto_knowledge_failed");
+        }
+
+        var response =
+            "Nao encontrei esse assunto na sua base local, entao gerei uma nova nota usando o Ollama.\n\n" +
+            $"Arquivo criado: {generated.Path}\n\n" +
+            $"Resumo:\n{generated.Answer}";
+
+        return await LocalAnswer(message, response, "auto_knowledge_created");
+    }
+
+    private async Task<ActionResult<ChatResponse>> AutoKnowledgeForceAnswer(string message, string intent)
+    {
+        var generated = await _autoKnowledge.GenerateAndSaveAsync(message);
+
+        if (generated is null)
+        {
+            return await LocalAnswer(
+                message,
+                "Nao consegui gerar a nova nota com o Ollama agora.",
+                "auto_knowledge_force_failed"
+            );
+        }
+
+        var response =
+            "Gerei e salvei uma nova nota no Obsidian.\n\n" +
+            $"Titulo: {generated.Title}\n" +
+            $"Arquivo: {generated.Path}\n\n" +
+            $"Resumo:\n{generated.Answer}";
+
+        return await LocalAnswer(message, response, "auto_knowledge_force_created");
+    }
+
+    private async Task<ActionResult<ChatResponse>> HomeAssistantAnswer(string message, string intent)
+    {
+        if (!_home.IsEnabled())
+            return await LocalAnswer(message, "Home Assistant nao esta habilitado no Nexus.", "home_assistant_disabled");
+
+        var devicesMap = _obsidian.ReadFile("07_Nexus/home-assistant-devices.md");
+        if (string.IsNullOrWhiteSpace(devicesMap))
+            return await LocalAnswer(message, "Nao encontrei o mapa de dispositivos em 07_Nexus/home-assistant-devices.md.", "home_assistant_devices_missing");
+
+        var prompt = $@"
+Voce e Nexus.
+
+Converta o comando do Gabriel em uma acao Home Assistant.
+
+Responda somente em JSON valido, sem markdown.
+
+Formato:
+{{
+  ""action"": ""turn_on|turn_off|toggle|set_brightness|get_state|list_states"",
+  ""entity_id"": ""dominio.nome"",
+  ""brightness"": 0,
+  ""needs_confirmation"": true
+}}
+
+Regras:
+- Para listar o que esta ligado em casa, use action list_states e entity_id vazio.
+- Para consultar status de um dispositivo, use action get_state.
+- Para brilho, use set_brightness e brightness de 1 a 100.
+- Para cenas do Home Assistant, use action turn_on com entity_id scene.nome.
+- Marque needs_confirmation como true para fechaduras, portoes, alarmes, cameras, aquecedores, ar-condicionado, cortinas e tomadas criticas.
+- Para luzes e tomadas simples, needs_confirmation pode ser false.
+
+Mapa de dispositivos:
+{devicesMap}
+
+Comando:
+{message}
+";
+
+        var parsed = await _ollama.AskAsync(prompt);
+
+        if (string.IsNullOrWhiteSpace(parsed))
+            return await LocalAnswer(message, "Nao consegui interpretar o comando da casa inteligente.", intent);
+
+        HomeAssistantParsedAction action;
+
+        try
+        {
+            action = ParseHomeAssistantAction(parsed);
+        }
+        catch
+        {
+            return await LocalAnswer(
+                message,
+                $"Nao consegui interpretar o JSON da acao. Resposta recebida: {parsed}",
+                "home_assistant_parse_error"
+            );
+        }
+
+        if (action.Action == "list_states")
+        {
+            var statesJson = await _home.GetStatesAsync();
+            var answer = BuildHomeAssistantStatesSummary(statesJson);
+            return await LocalAnswer(message, answer, "home_assistant_states");
+        }
+
+        if (string.IsNullOrWhiteSpace(action.EntityId))
+            return await LocalAnswer(message, "Nao encontrei o dispositivo correspondente no mapa do Home Assistant.", intent);
+
+        if (action.Action == "get_state")
+        {
+            var stateJson = await _home.GetStateAsync(action.EntityId);
+            var answer = BuildHomeAssistantStateSummary(action.EntityId, stateJson);
+            return await LocalAnswer(message, answer, "home_assistant_state");
+        }
+
+        var needsConfirmation = action.NeedsConfirmation || IsSensitiveHomeAssistantAction(action);
+        if (needsConfirmation)
+        {
+            return await LocalAnswer(
+                message,
+                $"Essa acao exige confirmacao: {action.Action} em {action.EntityId}. Diga: Nexus, confirmar acao {action.Action} {action.EntityId}",
+                "home_assistant_needs_confirmation"
+            );
+        }
+
+        return await ExecuteHomeAssistantAction(message, action, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> HomeAssistantConfirmAnswer(string message, string intent)
+    {
+        if (!_home.IsEnabled())
+            return await LocalAnswer(message, "Home Assistant nao esta habilitado no Nexus.", "home_assistant_disabled");
+
+        var cleaned = message
+            .Replace("Nexus", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("confirmar acao", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("confirmar ação", "", StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', '.', ',', '?', '!', ':', ';');
+
+        var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2)
+        {
+            return await LocalAnswer(
+                message,
+                "Para confirmar, diga: Nexus, confirmar acao turn_on light.quarto",
+                "home_assistant_confirmation_invalid"
+            );
+        }
+
+        var action = new HomeAssistantParsedAction(parts[0], parts[1], 0, false);
+        return await ExecuteHomeAssistantAction(message, action, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> ExecuteHomeAssistantAction(string message, HomeAssistantParsedAction action, string intent)
+    {
+        bool ok = action.Action switch
+        {
+            "turn_on" => await _home.TurnOnAsync(action.EntityId),
+            "turn_off" => await _home.TurnOffAsync(action.EntityId),
+            "toggle" => await _home.ToggleAsync(action.EntityId),
+            "set_brightness" => await _home.SetLightBrightnessAsync(action.EntityId, action.Brightness),
+            _ => false
+        };
+
+        var answer = ok
+            ? $"Comando enviado para o Home Assistant: {action.Action} em {action.EntityId}."
+            : "Tentei executar o comando, mas o Home Assistant nao confirmou sucesso.";
+
+        _obsidian.AppendToFile(
+            "07_Nexus/operation-log.md",
+            $"\n\n## {DateTime.Now:yyyy-MM-dd HH:mm:ss}\nAcao: home-assistant\nComando: {message}\nResultado: {answer}\n"
+        );
+
+        return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> NetworkStatusAnswer(string message, string intent)
+    {
+        var status = await _network.CheckNetworkStatusAsync();
+        var offline = status.Devices.Where(device => device.Monitor && !device.Online).ToList();
+        var online = status.Devices.Where(device => device.Online).ToList();
+
+        var answer =
+            $"Status da rede: {status.Status}\n" +
+            $"Internet: {(status.InternetOnline ? "online" : "offline")}\n" +
+            $"Monitorados: {status.MonitoredDevices}\n" +
+            $"Online: {status.OnlineDevices}\n" +
+            $"Offline: {status.OfflineDevices}\n" +
+            $"Desconhecidos: {status.UnknownDevices.Count}\n" +
+            $"Alertas hoje: {status.AlertsToday}\n\n";
+
+        if (online.Count > 0)
+        {
+            answer += "Dispositivos online:\n";
+            answer += string.Join("\n", online.Select(device => $"- {device.Name} ({device.Ip})"));
+            answer += "\n\n";
+        }
+
+        if (offline.Count > 0)
+        {
+            answer += "Dispositivos offline:\n";
+            answer += string.Join("\n", offline.Select(device => $"- {device.Name} ({device.Ip})"));
+            answer += "\n\n";
+        }
+
+        if (status.UnknownDevices.Count > 0)
+        {
+            answer += "Dispositivos desconhecidos detectados:\n";
+            answer += string.Join("\n", status.UnknownDevices.Select(device => $"- {device.Ip} / {device.Mac}"));
+            answer += "\n\nGabriel, abra o painel Network para marcar se conhece ou nao.";
+        }
+
+        return await LocalAnswer(message, answer.Trim(), intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> TodayBriefingAnswer(string message, string intent)
+    {
+        var briefing = await _today.BuildAsync();
+        var answer =
+            $"Briefing do dia - {briefing.Date:dd/MM/yyyy HH:mm}\n\n" +
+            $"{briefing.Summary}\n\n" +
+            $"Modo operacao: {(briefing.OperationMode ? "ativo" : "inativo")}\n" +
+            $"Ollama: {(briefing.OllamaEnabled ? "ativo" : "inativo")}\n" +
+            $"Pendencias abertas: {briefing.OpenTasks.Count}\n" +
+            $"Itens para revisao: {briefing.ReviewItems.Count}\n\n" +
+            $"Sugestao do Nexus: {briefing.Suggestion}";
+
+        if (briefing.OpenTasks.Count > 0)
+            answer += "\n\nTarefas:\n" + string.Join("\n", briefing.OpenTasks.Select(task => $"- {task.Replace("- [ ]", "").Trim()}"));
+
+        if (briefing.Alerts.Count > 0)
+            answer += "\n\nAlertas recentes:\n" + string.Join("\n", briefing.Alerts.Take(5).Select(alert => $"- {alert.Title} ({alert.Severity})"));
+
+        return await LocalAnswer(message, answer, intent);
+    }
+
+    private static HomeAssistantParsedAction ParseHomeAssistantAction(string parsed)
+    {
+        var cleanJson = CleanJsonResponse(parsed);
+        using var doc = JsonDocument.Parse(cleanJson);
+        var root = doc.RootElement;
+
+        var action = root.TryGetProperty("action", out var actionProperty)
+            ? actionProperty.GetString() ?? ""
+            : "";
+        var entityId = root.TryGetProperty("entity_id", out var entityProperty)
+            ? entityProperty.GetString() ?? ""
+            : "";
+        var needsConfirmation = root.TryGetProperty("needs_confirmation", out var confirmationProperty) &&
+            confirmationProperty.ValueKind == JsonValueKind.True;
+        var brightness = root.TryGetProperty("brightness", out var brightnessProperty) &&
+            brightnessProperty.TryGetInt32(out var brightnessValue)
+                ? Math.Clamp(brightnessValue, 1, 100)
+                : 100;
+
+        return new HomeAssistantParsedAction(action, entityId, brightness, needsConfirmation);
+    }
+
+    private static string CleanJsonResponse(string response)
+    {
+        var clean = response.Trim();
+
+        if (!clean.StartsWith("```"))
+            return clean;
+
+        clean = Regex.Replace(clean, @"^```(?:json)?\s*", "", RegexOptions.IgnoreCase);
+        clean = Regex.Replace(clean, @"\s*```$", "");
+        return clean.Trim();
+    }
+
+    private static bool IsSensitiveHomeAssistantAction(HomeAssistantParsedAction action)
+    {
+        var target = $"{action.Action} {action.EntityId}".ToLowerInvariant();
+
+        return target.Contains("lock.") ||
+            target.Contains("alarm_control_panel.") ||
+            target.Contains("camera.") ||
+            target.Contains("cover.") ||
+            target.Contains("climate.") ||
+            target.Contains("portao") ||
+            target.Contains("portão") ||
+            target.Contains("fechadura") ||
+            target.Contains("alarme") ||
+            target.Contains("camera") ||
+            target.Contains("câmera") ||
+            target.Contains("aquecedor") ||
+            target.Contains("servidor");
+    }
+
+    private static string BuildHomeAssistantStateSummary(string entityId, string stateJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(stateJson);
+            var root = doc.RootElement;
+            var state = root.TryGetProperty("state", out var stateProperty) ? stateProperty.GetString() : "";
+            var friendlyName = entityId;
+
+            if (root.TryGetProperty("attributes", out var attributes) &&
+                attributes.TryGetProperty("friendly_name", out var nameProperty))
+            {
+                friendlyName = nameProperty.GetString() ?? entityId;
+            }
+
+            return $"Status de {friendlyName} ({entityId}): {state}.";
+        }
+        catch
+        {
+            return $"Resposta do Home Assistant para {entityId}:\n{stateJson}";
+        }
+    }
+
+    private static string BuildHomeAssistantStatesSummary(string statesJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(statesJson);
+            var active = new List<string>();
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var entityId = item.GetProperty("entity_id").GetString() ?? "";
+                var state = item.GetProperty("state").GetString() ?? "";
+
+                if (state is "off" or "unavailable" or "unknown")
+                    continue;
+
+                if (!IsVisibleHomeAssistantDomain(entityId))
+                    continue;
+
+                var name = entityId;
+                if (item.TryGetProperty("attributes", out var attributes) &&
+                    attributes.TryGetProperty("friendly_name", out var nameProperty))
+                {
+                    name = nameProperty.GetString() ?? entityId;
+                }
+
+                active.Add($"- {name} ({entityId}): {state}");
+            }
+
+            return active.Count == 0
+                ? "Nao encontrei dispositivos ligados ou ativos no Home Assistant."
+                : "Dispositivos ligados ou ativos no Home Assistant:\n" + string.Join("\n", active.Take(25));
+        }
+        catch
+        {
+            return "Recebi os estados do Home Assistant, mas nao consegui resumir a resposta.";
+        }
+    }
+
+    private static bool IsVisibleHomeAssistantDomain(string entityId)
+    {
+        return entityId.StartsWith("light.", StringComparison.OrdinalIgnoreCase) ||
+            entityId.StartsWith("switch.", StringComparison.OrdinalIgnoreCase) ||
+            entityId.StartsWith("fan.", StringComparison.OrdinalIgnoreCase) ||
+            entityId.StartsWith("climate.", StringComparison.OrdinalIgnoreCase) ||
+            entityId.StartsWith("cover.", StringComparison.OrdinalIgnoreCase) ||
+            entityId.StartsWith("media_player.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUsableKnowledgeResult(string path)
+    {
+        var normalized = path.Replace('\\', '/');
+
+        return !normalized.StartsWith("07_Nexus/", StringComparison.OrdinalIgnoreCase) &&
+            !normalized.EndsWith("/_index.md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRelevantKnowledgeResult(string query, MarkdownSearchResult result)
+    {
+        var terms = ExtractSpecificTerms(query);
+
+        if (terms.Length == 0)
+            return result.Score >= 8;
+
+        var searchable = NormalizeSearchText($"{result.Path} {result.Title} {result.Snippet}");
+        var matches = terms.Count(term => searchable.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        return terms.Length == 1 ? matches == 1 : matches == terms.Length;
+    }
+
+    private static string[] ExtractSpecificTerms(string text)
+    {
+        var normalized = NormalizeSearchText(text);
+
+        return Regex.Matches(normalized, @"[a-z0-9]+")
+            .Select(match => match.Value)
+            .Where(term => term.Length > 2 || term is "vm" or "ct")
+            .Where(term => !IsAutoKnowledgeStopWord(term))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool IsAutoKnowledgeStopWord(string term)
+    {
+        return term is
+            "nexus" or "como" or "fazer" or "faco" or "faca" or "gerar" or "criar" or
+            "uma" or "novo" or "nova" or "para" or "sobre" or "passo" or "ensine" or
+            "explique" or "configurar" or "instalar";
+    }
+
+    private static string NormalizeSearchText(string text)
+    {
+        return text
+            .ToLowerInvariant()
+            .Replace("á", "a")
+            .Replace("à", "a")
+            .Replace("ã", "a")
+            .Replace("â", "a")
+            .Replace("é", "e")
+            .Replace("ê", "e")
+            .Replace("í", "i")
+            .Replace("ó", "o")
+            .Replace("ô", "o")
+            .Replace("õ", "o")
+            .Replace("ú", "u")
+            .Replace("ç", "c");
     }
 
     private async Task<ActionResult<ChatResponse>> LocalAnswer(string userMessage, string answer, string intent)
@@ -496,6 +965,88 @@ Responda como se estivesse puxando assunto com Gabriel.
             return "create_task";
 
         if (
+            lower.Contains("briefing do dia") ||
+            lower.Contains("painel do dia") ||
+            lower.Contains("resumo do dia") ||
+            lower.Contains("como esta o dia") ||
+            lower.Contains("como está o dia")
+        )
+            return "today_briefing";
+
+        if (
+            lower.Contains("status da rede") ||
+            lower.Contains("quem esta online") ||
+            lower.Contains("quem está online") ||
+            lower.Contains("algum dispositivo caiu") ||
+            lower.Contains("verifique dispositivos criticos") ||
+            lower.Contains("verifique dispositivos críticos") ||
+            lower.Contains("verificar dispositivos") ||
+            lower.Contains("dispositivos da rede")
+        )
+            return "network_status";
+
+        if (
+            lower.Contains("confirmar acao") ||
+            lower.Contains("confirmar ação")
+        )
+            return "home_assistant_confirm";
+
+        if (
+            lower.Contains("ligar luz") ||
+            lower.Contains("liga a luz") ||
+            lower.Contains("ligue a luz") ||
+            lower.Contains("acender luz") ||
+            lower.Contains("acende a luz") ||
+            lower.Contains("desligar luz") ||
+            lower.Contains("desliga a luz") ||
+            lower.Contains("apagar luz") ||
+            lower.Contains("apaga a luz") ||
+            lower.Contains("ligar tomada") ||
+            lower.Contains("liga a tomada") ||
+            lower.Contains("desligar tomada") ||
+            lower.Contains("desliga a tomada") ||
+            lower.Contains("ligar ventilador") ||
+            lower.Contains("liga o ventilador") ||
+            lower.Contains("desligar ventilador") ||
+            lower.Contains("desliga o ventilador") ||
+            lower.Contains("aumenta a luz") ||
+            lower.Contains("diminuir a luz") ||
+            lower.Contains("luz do") ||
+            lower.Contains("luz da") ||
+            lower.Contains("status da luz") ||
+            lower.Contains("status do dispositivo") ||
+            lower.Contains("o que esta ligado em casa") ||
+            lower.Contains("o que está ligado em casa")
+        )
+            return "home_assistant_control";
+
+        if (
+            lower.Contains("aprenda sobre") ||
+            lower.Contains("gere uma nota sobre") ||
+            lower.Contains("crie uma nota sobre") ||
+            lower.Contains("crie um procedimento sobre")
+        )
+            return "auto_knowledge_force";
+
+        if (
+            lower.Contains("crie um passo a passo") ||
+            lower.Contains("criar passo a passo") ||
+            lower.Contains("como fazer") ||
+            lower.Contains("como gerar") ||
+            lower.Contains("como criar") ||
+            lower.Contains("como faco") ||
+            lower.Contains("como faço") ||
+            lower.Contains("como faÃ§o") ||
+            lower.Contains("me ensine") ||
+            (lower.Contains("me explique") && !lower.Contains("procedimento")) ||
+            lower.Contains("o que e") ||
+            lower.Contains("o que é") ||
+            lower.Contains("como configurar") ||
+            lower.Contains("como instalar")
+        )
+            return "auto_knowledge";
+
+        if (
             lower.Contains("me explique o procedimento") ||
             lower.Contains("explique o procedimento") ||
             lower.Contains("resuma o procedimento") ||
@@ -576,6 +1127,13 @@ Responda como se estivesse puxando assunto com Gabriel.
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         return !string.IsNullOrWhiteSpace(apiKey) && apiKey != "coloque_sua_chave_aqui";
     }
+
+    private record HomeAssistantParsedAction(
+        string Action,
+        string EntityId,
+        int Brightness,
+        bool NeedsConfirmation
+    );
 
     private static bool IsProbablyCasual(string message)
     {
@@ -743,6 +1301,27 @@ Responda de forma natural.
             .Replace("como fazer", "", StringComparison.OrdinalIgnoreCase)
             .Replace("como faÃ§o", "", StringComparison.OrdinalIgnoreCase)
             .Replace("como faco", "", StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', '.', ',', '?', '!');
+    }
+
+    private static string CleanAutoKnowledgeCommand(string message)
+    {
+        return message
+            .Replace("Nexus", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("crie um passo a passo para", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("crie um passo a passo", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("criar passo a passo para", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como fazer", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como gerar", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como criar", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como faço", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como faco", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("me ensine", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("me explique", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("o que é", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("o que e", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como configurar", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("como instalar", "", StringComparison.OrdinalIgnoreCase)
             .Trim(' ', '.', ',', '?', '!');
     }
 
@@ -968,4 +1547,3 @@ Responda de forma natural.
         return content.Length <= 1800 ? content : content[^1800..];
     }
 }
-

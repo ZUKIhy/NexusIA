@@ -9,13 +9,21 @@ public class DocsController : ControllerBase
 {
     private readonly ObsidianService _obsidian;
     private readonly OllamaService _ollama;
+    private readonly ClaudeService _claude;
     private readonly OperationService _operation;
 
-    public DocsController(ObsidianService obsidian, OllamaService ollama, OperationService operation)
+    public DocsController(ObsidianService obsidian, OllamaService ollama, ClaudeService claude, OperationService operation)
     {
         _obsidian = obsidian;
         _ollama = ollama;
+        _claude = claude;
         _operation = operation;
+    }
+
+    private static bool ShouldUseClaude(string envVar)
+    {
+        return (Environment.GetEnvironmentVariable(envVar) ?? "false")
+            .Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     [HttpGet("search")]
@@ -83,17 +91,33 @@ public class DocsController : ControllerBase
         var targetPath = $"06_Documents/Procedimentos-Padronizados/Importados/{fileName}-padronizado.md";
         var fallbackContent = BuildFallbackProcedure(request.Path, original);
         var prompt = BuildStandardizePrompt(original, request.Path);
-        var aiContent = await _ollama.AskAsync(prompt);
+
+        string? aiContent = null;
+        var engine = "fallback";
+
+        if (ShouldUseClaude("CLAUDE_USE_FOR_STANDARDIZE"))
+        {
+            aiContent = await _claude.AskAsync(prompt, 4096);
+            if (!string.IsNullOrWhiteSpace(aiContent)) engine = "claude";
+        }
+
+        if (string.IsNullOrWhiteSpace(aiContent))
+        {
+            aiContent = await _ollama.AskAsync(prompt);
+            if (!string.IsNullOrWhiteSpace(aiContent)) engine = "ollama";
+        }
+
         var content = string.IsNullOrWhiteSpace(aiContent) ? fallbackContent : aiContent.Trim();
 
         _obsidian.EnsureFile(targetPath, content);
-        _operation.Log("procedimento_padronizado", request.Path, targetPath);
+        _operation.Log("procedimento_padronizado", request.Path, $"{targetPath} | motor: {engine}");
 
         return Ok(new
         {
             created = true,
             path = targetPath,
-            usedOllama = !string.IsNullOrWhiteSpace(aiContent)
+            engine,
+            usedOllama = engine == "ollama"
         });
     }
 
@@ -112,17 +136,33 @@ public class DocsController : ControllerBase
         var targetPath = $"06_Documents/Checklists/Gerados/{fileName}-checklist.md";
         var fallback = BuildFallbackChecklist(request.Path);
         var prompt = BuildChecklistPrompt(original);
-        var aiContent = await _ollama.AskAsync(prompt);
+
+        string? aiContent = null;
+        var engine = "fallback";
+
+        if (ShouldUseClaude("CLAUDE_USE_FOR_CHECKLIST"))
+        {
+            aiContent = await _claude.AskAsync(prompt, 2048);
+            if (!string.IsNullOrWhiteSpace(aiContent)) engine = "claude";
+        }
+
+        if (string.IsNullOrWhiteSpace(aiContent))
+        {
+            aiContent = await _ollama.AskAsync(prompt);
+            if (!string.IsNullOrWhiteSpace(aiContent)) engine = "ollama";
+        }
+
         var content = string.IsNullOrWhiteSpace(aiContent) ? fallback : aiContent.Trim();
 
         _obsidian.EnsureFile(targetPath, content);
-        _operation.Log("checklist_gerado", request.Path, targetPath);
+        _operation.Log("checklist_gerado", request.Path, $"{targetPath} | motor: {engine}");
 
         return Ok(new
         {
             created = true,
             path = targetPath,
-            usedOllama = !string.IsNullOrWhiteSpace(aiContent)
+            engine,
+            usedOllama = engine == "ollama"
         });
     }
 
