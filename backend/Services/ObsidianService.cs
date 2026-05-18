@@ -80,6 +80,18 @@ public class ObsidianService
         }
     }
 
+    public void WriteFile(string relativePath, string content)
+    {
+        var path = GetFullPath(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        lock (_fileLock)
+        {
+            File.WriteAllText(path, content);
+            InvalidateMarkdownCache();
+        }
+    }
+
     public string ReadFile(string relativePath)
     {
         var path = GetFullPath(relativePath);

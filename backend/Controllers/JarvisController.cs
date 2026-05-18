@@ -26,6 +26,7 @@ public class NexusController : ControllerBase
     private readonly NetworkMonitorService _network;
     private readonly WeatherService _weather;
     private readonly SpotifyService _spotify;
+    private readonly SpotifyLearningService _spotifyLearning;
     private readonly TodayService _today;
     private readonly IHubContext<NexusHub> _hub;
 
@@ -43,6 +44,7 @@ public class NexusController : ControllerBase
         NetworkMonitorService network,
         WeatherService weather,
         SpotifyService spotify,
+        SpotifyLearningService spotifyLearning,
         TodayService today,
         IHubContext<NexusHub> hub)
     {
@@ -59,6 +61,7 @@ public class NexusController : ControllerBase
         _network = network;
         _weather = weather;
         _spotify = spotify;
+        _spotifyLearning = spotifyLearning;
         _today = today;
         _hub = hub;
     }
@@ -232,6 +235,9 @@ public class NexusController : ControllerBase
 
         if (intent == "spotify_control")
             return await SpotifyAnswer(message, intent);
+
+        if (intent == "spotify_learning")
+            return await SpotifyLearningAnswer(message, intent);
 
         if (intent == "today_briefing")
             return await TodayBriefingAnswer(message, intent);
@@ -718,6 +724,32 @@ Comando:
         }
     }
 
+    private async Task<ActionResult<ChatResponse>> SpotifyLearningAnswer(string message, string intent)
+    {
+        try
+        {
+            var result = await _spotifyLearning.LearnAsync();
+            if (!result.Success)
+                return await LocalAnswer(message, result.Message, "spotify_learning_failed");
+
+            var answer =
+                $"{result.Message}\n\n" +
+                $"Arquivo atualizado: {result.ProfilePath}\n\n" +
+                result.MemorySummary;
+
+            return await LocalAnswer(message, answer, intent);
+        }
+        catch (Exception ex)
+        {
+            var answer =
+                "Nao consegui aprender seus gostos musicais agora. " +
+                "Se aparecer erro de permissao do Spotify, abra http://localhost:5000/api/spotify/login e autorize novamente, porque adicionei permissoes novas para top musicas e historico recente.\n\n" +
+                ex.Message;
+
+            return await LocalAnswer(message, answer, "spotify_learning_error");
+        }
+    }
+
     private static HomeAssistantParsedAction ParseHomeAssistantAction(string parsed)
     {
         var cleanJson = CleanJsonResponse(parsed);
@@ -1031,6 +1063,19 @@ Responda como se estivesse puxando assunto com Gabriel.
             lower.Contains("rio preto")
         )
             return "weather_report";
+
+        if (
+            lower.Contains("aprenda meus gostos musicais") ||
+            lower.Contains("aprender meus gostos musicais") ||
+            lower.Contains("aprenda minhas musicas") ||
+            lower.Contains("aprenda minhas músicas") ||
+            lower.Contains("me conheca pelo spotify") ||
+            lower.Contains("me conheça pelo spotify") ||
+            lower.Contains("salve meus gostos musicais") ||
+            lower.Contains("memoria musical") ||
+            lower.Contains("memória musical")
+        )
+            return "spotify_learning";
 
         if (
             lower.Contains("spotify") ||

@@ -2,6 +2,7 @@
 
 ## Ativas
 - Weather: Sao Jose do Rio Preto
+- Spotify
 - Home Assistant
 - Network Monitor
 - Ollama
@@ -11,7 +12,6 @@
 - Telegram
 - Google Calendar
 - Gmail
-- Spotify
 
 ## Seguranca
 - Tokens e secrets ficam no backend/.env ou backend/secrets.

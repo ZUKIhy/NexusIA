@@ -157,8 +157,13 @@ export async function getSpotifyCurrent() {
   return data;
 }
 
-export async function playSpotify(query = "") {
-  const { data } = await api.post("/api/spotify/play", { query });
+export async function getSpotifyPlaylists() {
+  const { data } = await api.get("/api/spotify/playlists");
+  return data;
+}
+
+export async function playSpotify(query = "", contextUri = "") {
+  const { data } = await api.post("/api/spotify/play", { query, contextUri });
   return data;
 }
 

@@ -8,10 +8,12 @@ namespace NexusBackend.Controllers;
 public class SpotifyController : ControllerBase
 {
     private readonly SpotifyService _spotify;
+    private readonly SpotifyLearningService _learning;
 
-    public SpotifyController(SpotifyService spotify)
+    public SpotifyController(SpotifyService spotify, SpotifyLearningService learning)
     {
         _spotify = spotify;
+        _learning = learning;
     }
 
     [HttpGet("status")]
@@ -47,6 +49,26 @@ public class SpotifyController : ControllerBase
     public async Task<IActionResult> Current()
     {
         return Ok(await _spotify.GetCurrentAsync());
+    }
+
+    [HttpGet("playlists")]
+    public async Task<IActionResult> Playlists()
+    {
+        return Ok(new { playlists = await _spotify.GetPlaylistsAsync() });
+    }
+
+    [HttpPost("learn")]
+    public async Task<IActionResult> Learn()
+    {
+        try
+        {
+            var result = await _learning.LearnAsync();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(SpotifyLearningResult.Failed(ex.Message));
+        }
     }
 
     [HttpPost("play")]

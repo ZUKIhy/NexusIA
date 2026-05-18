@@ -34,9 +34,11 @@ builder.Services.AddSingleton<NetworkMonitorService>();
 builder.Services.AddSingleton<AlertService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<SpotifyService>();
+builder.Services.AddSingleton<SpotifyLearningService>();
 builder.Services.AddSingleton<TodayService>();
 builder.Services.AddSingleton<OperationService>();
 builder.Services.AddHostedService<AlertBackgroundService>();
+builder.Services.AddHostedService<SpotifyLearningBackgroundService>();
 
 var app = builder.Build();
 
@@ -62,6 +64,8 @@ app.MapGet("/", () => new
         "/api/spotify/status",
         "/api/spotify/login",
         "/api/spotify/current",
+        "/api/spotify/playlists",
+        "/api/spotify/learn",
         "/api/spotify/previous",
         "/api/today",
         "/hubs/nexus"

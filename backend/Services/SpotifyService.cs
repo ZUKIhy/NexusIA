@@ -65,7 +65,9 @@ public class SpotifyService
             "user-read-currently-playing",
             "user-modify-playback-state",
             "user-library-read",
-            "playlist-read-private"
+            "playlist-read-private",
+            "user-top-read",
+            "user-read-recently-played"
         });
 
         var query = new Dictionary<string, string>
@@ -142,6 +144,120 @@ public class SpotifyService
             DurationMs = GetInt(item, "duration_ms"),
             Message = "Spotify conectado."
         };
+    }
+
+    public async Task<List<SpotifyPlaylistItem>> GetPlaylistsAsync()
+    {
+        var response = await SendApiAsync(HttpMethod.Get, "me/playlists?limit=50");
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(BuildSpotifyError("listar playlists", response.StatusCode, json));
+
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return new List<SpotifyPlaylistItem>();
+
+        return items.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select(item => new SpotifyPlaylistItem
+            {
+                Id = GetString(item, "id"),
+                Name = GetString(item, "name"),
+                Uri = GetString(item, "uri"),
+                ImageUrl = GetPlaylistImageUrl(item),
+                Owner = GetOwnerName(item),
+                TrackCount = GetPlaylistTrackCount(item),
+                IsPublic = item.TryGetProperty("public", out var publicValue) &&
+                    publicValue.ValueKind == JsonValueKind.True
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Uri))
+            .ToList();
+    }
+
+    public async Task<List<SpotifyTopTrackItem>> GetTopTracksAsync(string timeRange = "medium_term", int limit = 20)
+    {
+        var endpoint = $"me/top/tracks?time_range={Uri.EscapeDataString(timeRange)}&limit={Math.Clamp(limit, 1, 50)}";
+        var response = await SendApiAsync(HttpMethod.Get, endpoint);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(BuildSpotifyError("ler musicas mais ouvidas", response.StatusCode, json));
+
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return new List<SpotifyTopTrackItem>();
+
+        return items.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select((item, index) => new SpotifyTopTrackItem
+            {
+                Rank = index + 1,
+                Name = GetString(item, "name"),
+                Artist = GetArtists(item),
+                Album = GetAlbumName(item),
+                Uri = GetString(item, "uri"),
+                Popularity = GetInt(item, "popularity")
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .ToList();
+    }
+
+    public async Task<List<SpotifyTopArtistItem>> GetTopArtistsAsync(string timeRange = "medium_term", int limit = 20)
+    {
+        var endpoint = $"me/top/artists?time_range={Uri.EscapeDataString(timeRange)}&limit={Math.Clamp(limit, 1, 50)}";
+        var response = await SendApiAsync(HttpMethod.Get, endpoint);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(BuildSpotifyError("ler artistas mais ouvidos", response.StatusCode, json));
+
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return new List<SpotifyTopArtistItem>();
+
+        return items.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select((item, index) => new SpotifyTopArtistItem
+            {
+                Rank = index + 1,
+                Name = GetString(item, "name"),
+                Uri = GetString(item, "uri"),
+                Popularity = GetInt(item, "popularity"),
+                Genres = GetStringArray(item, "genres")
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .ToList();
+    }
+
+    public async Task<List<SpotifyRecentTrackItem>> GetRecentlyPlayedAsync(int limit = 20)
+    {
+        var endpoint = $"me/player/recently-played?limit={Math.Clamp(limit, 1, 50)}";
+        var response = await SendApiAsync(HttpMethod.Get, endpoint);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(BuildSpotifyError("ler historico recente", response.StatusCode, json));
+
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return new List<SpotifyRecentTrackItem>();
+
+        return items.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select(item =>
+            {
+                var track = item.TryGetProperty("track", out var trackElement) ? trackElement : default;
+                return new SpotifyRecentTrackItem
+                {
+                    Name = GetString(track, "name"),
+                    Artist = GetArtists(track),
+                    Album = GetAlbumName(track),
+                    PlayedAt = GetString(item, "played_at")
+                };
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .ToList();
     }
 
     public async Task<string> PlayAsync(SpotifyPlayRequest request)
@@ -411,6 +527,9 @@ public class SpotifyService
         if ((int)statusCode == 401)
             return $"Nao consegui {action}: login do Spotify expirado. Abra /api/spotify/login novamente.";
 
+        if ((int)statusCode == 403 && (action.Contains("ler ", StringComparison.OrdinalIgnoreCase) || action.Contains("listar ", StringComparison.OrdinalIgnoreCase)))
+            return $"Nao consegui {action}: o Spotify recusou por permissao insuficiente. Abra /api/spotify/login e autorize novamente para liberar os novos scopes de aprendizado.";
+
         if ((int)statusCode == 403)
             return $"Nao consegui {action}: o Spotify recusou a acao. Verifique se sua conta tem Premium e se o app recebeu as permissoes de playback.";
 
@@ -465,6 +584,35 @@ public class SpotifyService
         return first.ValueKind == JsonValueKind.Object ? GetString(first, "url") : "";
     }
 
+    private static string GetPlaylistImageUrl(JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object ||
+            !item.TryGetProperty("images", out var images) ||
+            images.ValueKind != JsonValueKind.Array)
+            return "";
+
+        var first = images.EnumerateArray().FirstOrDefault(image => image.ValueKind == JsonValueKind.Object);
+        return first.ValueKind == JsonValueKind.Object ? GetString(first, "url") : "";
+    }
+
+    private static string GetOwnerName(JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object ||
+            !item.TryGetProperty("owner", out var owner))
+            return "";
+
+        return GetString(owner, "display_name");
+    }
+
+    private static int GetPlaylistTrackCount(JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object ||
+            !item.TryGetProperty("tracks", out var tracks))
+            return 0;
+
+        return GetInt(tracks, "total");
+    }
+
     private static string GetString(JsonElement element, string property)
     {
         return element.ValueKind == JsonValueKind.Object &&
@@ -472,6 +620,20 @@ public class SpotifyService
             value.ValueKind == JsonValueKind.String
                 ? value.GetString() ?? ""
                 : "";
+    }
+
+    private static List<string> GetStringArray(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(property, out var values) ||
+            values.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        return values.EnumerateArray()
+            .Where(value => value.ValueKind == JsonValueKind.String)
+            .Select(value => value.GetString() ?? "")
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
     }
 
     private static int GetInt(JsonElement element, string property)
@@ -517,6 +679,44 @@ public class SpotifyPlaybackState
     public int ProgressMs { get; set; }
     public int DurationMs { get; set; }
     public string Message { get; set; } = "";
+}
+
+public class SpotifyPlaylistItem
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Uri { get; set; } = "";
+    public string ImageUrl { get; set; } = "";
+    public string Owner { get; set; } = "";
+    public int TrackCount { get; set; }
+    public bool IsPublic { get; set; }
+}
+
+public class SpotifyTopTrackItem
+{
+    public int Rank { get; set; }
+    public string Name { get; set; } = "";
+    public string Artist { get; set; } = "";
+    public string Album { get; set; } = "";
+    public string Uri { get; set; } = "";
+    public int Popularity { get; set; }
+}
+
+public class SpotifyTopArtistItem
+{
+    public int Rank { get; set; }
+    public string Name { get; set; } = "";
+    public string Uri { get; set; } = "";
+    public int Popularity { get; set; }
+    public List<string> Genres { get; set; } = new();
+}
+
+public class SpotifyRecentTrackItem
+{
+    public string Name { get; set; } = "";
+    public string Artist { get; set; } = "";
+    public string Album { get; set; } = "";
+    public string PlayedAt { get; set; } = "";
 }
 
 internal class SpotifyStoredToken

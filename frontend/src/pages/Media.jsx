@@ -3,6 +3,7 @@ import { ExternalLink, Music2, Pause, Play, RefreshCw, SkipBack, SkipForward, Vo
 import {
   API_URL,
   getSpotifyCurrent,
+  getSpotifyPlaylists,
   getSpotifyStatus,
   nextSpotify,
   pauseSpotify,
@@ -14,6 +15,7 @@ import {
 export default function Media() {
   const [status, setStatus] = useState(null);
   const [player, setPlayer] = useState(null);
+  const [playlists, setPlaylists] = useState([]);
   const [query, setQuery] = useState("");
   const [volume, setVolume] = useState(50);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,13 @@ export default function Media() {
       setStatus(nextStatus);
 
       if (nextStatus.authenticated) {
-        setPlayer(await getSpotifyCurrent());
+        const [nextPlayer, playlistData] = await Promise.all([
+          getSpotifyCurrent(),
+          getSpotifyPlaylists(),
+        ]);
+
+        setPlayer(nextPlayer);
+        setPlaylists(playlistData.playlists || []);
       }
     } catch (err) {
       setError(readError(err, "Nao consegui carregar o Spotify."));
@@ -58,7 +66,15 @@ export default function Media() {
     try {
       const nextStatus = await getSpotifyStatus();
       setStatus(nextStatus);
-      if (nextStatus.authenticated) setPlayer(await getSpotifyCurrent());
+      if (nextStatus.authenticated) {
+        const [nextPlayer, playlistData] = await Promise.all([
+          getSpotifyCurrent(),
+          getSpotifyPlaylists(),
+        ]);
+
+        setPlayer(nextPlayer);
+        setPlaylists(playlistData.playlists || []);
+      }
     } catch {
       // Silent refresh keeps the media page calm while the backend wakes up.
     }
@@ -185,6 +201,45 @@ export default function Media() {
         <MediaStat label="Dispositivo" value={player?.device || "Nenhum"} />
         <MediaStat label="Playback" value={player?.isPlaying ? "Tocando" : "Pausado"} />
       </div>
+
+      <section className="panel media-playlists">
+        <header>
+          <div>
+            <strong>Playlists</strong>
+            <span>{playlists.length} encontradas</span>
+          </div>
+          <Music2 size={18} />
+        </header>
+
+        {playlists.length > 0 ? (
+          <div className="media-playlist-grid">
+            {playlists.map((playlist) => (
+              <article key={playlist.uri} className="media-playlist-card">
+                <div className="media-playlist-cover">
+                  {playlist.imageUrl ? <img src={playlist.imageUrl} alt="" /> : <Music2 size={24} />}
+                </div>
+                <div>
+                  <strong>{playlist.name}</strong>
+                  <span>{playlist.trackCount} faixas{playlist.owner ? ` - ${playlist.owner}` : ""}</span>
+                </div>
+                <button
+                  type="button"
+                  className="icon-action-button"
+                  onClick={() => runAction(() => playSpotify("", playlist.uri), playlist.uri)}
+                  disabled={Boolean(busy)}
+                  title="Tocar playlist"
+                >
+                  <Play size={18} />
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">
+            {status?.authenticated ? "Nenhuma playlist retornada pelo Spotify." : "Conecte o Spotify para carregar suas playlists."}
+          </p>
+        )}
+      </section>
 
       {!status?.authenticated && (
         <section className="media-login panel">

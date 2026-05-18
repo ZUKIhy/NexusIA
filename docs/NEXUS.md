@@ -287,3 +287,63 @@ dotnet run --urls http://localhost:5000
 cd frontend
 npm.cmd run dev
 ```
+
+## Integracoes recentes
+
+### Weather
+
+O clima de Sao Jose do Rio Preto foi integrado com Open-Meteo.
+
+Arquivos:
+
+- `backend/Services/WeatherService.cs`
+- `backend/Controllers/WeatherController.cs`
+- `vault/07_Nexus/weather-settings.md`
+
+Endpoints:
+
+- `GET /api/weather/current`
+- `GET /api/weather/report`
+
+O briefing do dia inclui clima, chance de chuva, UV e recomendacao pratica.
+
+### Spotify e Media
+
+O Spotify foi integrado com OAuth Authorization Code Flow.
+
+Arquivos:
+
+- `backend/Services/SpotifyService.cs`
+- `backend/Controllers/SpotifyController.cs`
+- `frontend/src/pages/Media.jsx`
+- `vault/07_Nexus/spotify-settings.md`
+
+A aba `/media` mostra musica atual, capa, progresso, playlists e controles.
+
+Comandos:
+
+- `Nexus, tocar minhas musicas.`
+- `Nexus, tocar playlist foco.`
+- `Nexus, pausar musica.`
+- `Nexus, proxima musica.`
+- `Nexus, musica anterior.`
+- `Nexus, volume 40%.`
+
+### Aprendizado musical
+
+O Nexus aprende gostos musicais pelo Spotify.
+
+Arquivos:
+
+- `backend/Services/SpotifyLearningService.cs`
+- `backend/Services/SpotifyLearningBackgroundService.cs`
+- `07_Nexus/music-profile.md`
+- `03_Memory/memory.md`
+
+Comando:
+
+- `Nexus, aprenda meus gostos musicais.`
+
+O aprendizado usa musicas mais ouvidas, artistas mais ouvidos, generos, playlists e historico recente. Quando novos scopes forem adicionados, abra novamente `/api/spotify/login`.
+
+Mais detalhes estao em `docs/INTEGRATIONS.md`.

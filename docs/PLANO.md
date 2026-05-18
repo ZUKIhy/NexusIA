@@ -1,25 +1,41 @@
-# Plano de execução
+# Plano de execucao
 
-## Fase 1
-Interface React + backend .NET rodando localmente.
+## Feito
 
-## Fase 2
-OpenAI conectada e respondendo pelo chat.
+- Frontend React + backend .NET rodando localmente.
+- Chat principal com intents locais.
+- Memoria no Obsidian.
+- Tarefas, logs e busca documental.
+- Modo operacao.
+- Ollama local e OpenAI como fallback.
+- ElevenLabs e voz do navegador.
+- Home Assistant.
+- Network Monitor.
+- Today dashboard.
+- Weather com Open-Meteo.
+- Spotify OAuth, playback e aba Media.
+- Playlists no Media.
+- Aprendizado musical e memoria automatica.
+- Backup local e push para GitHub.
 
-## Fase 3
-Memória no Obsidian com arquivos Markdown.
+## Proximo bloco recomendado
 
-## Fase 4
-Voz no navegador usando Web Speech API e SpeechSynthesis.
+1. Telegram para alertas e comandos pelo celular.
+2. Google Calendar para agenda no briefing.
+3. Gmail para resumo de emails.
+4. Melhorar permissoes/confirmacoes para acoes sensiveis.
+5. Criar painel de memoria do usuario com gostos, rotina e preferencias.
 
-## Fase 5
-SignalR para eventos em tempo real.
+## Validacao continua
 
-## Fase 6
-ElevenLabs para voz realista.
+Antes de cada push:
 
-## Fase 7
-Python para ativação por palmas.
+```powershell
+cd backend
+dotnet build
+```
 
-## Fase 8
-Central de comando com rotina, tarefas, logs, memórias e gráficos.
+```powershell
+cd frontend
+npm.cmd run build
+```
