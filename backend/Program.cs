@@ -32,6 +32,8 @@ builder.Services.AddSingleton<AutoKnowledgeService>();
 builder.Services.AddSingleton<HomeAssistantService>();
 builder.Services.AddSingleton<NetworkMonitorService>();
 builder.Services.AddSingleton<AlertService>();
+builder.Services.AddSingleton<WeatherService>();
+builder.Services.AddSingleton<SpotifyService>();
 builder.Services.AddSingleton<TodayService>();
 builder.Services.AddSingleton<OperationService>();
 builder.Services.AddHostedService<AlertBackgroundService>();
@@ -55,6 +57,12 @@ app.MapGet("/", () => new
         "/api/logs",
         "/api/home/status",
         "/api/network/status",
+        "/api/weather/current",
+        "/api/weather/report",
+        "/api/spotify/status",
+        "/api/spotify/login",
+        "/api/spotify/current",
+        "/api/spotify/previous",
         "/api/today",
         "/hubs/nexus"
     }

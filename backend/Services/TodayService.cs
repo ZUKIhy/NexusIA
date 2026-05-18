@@ -9,6 +9,7 @@ public class TodayService
     private readonly HomeAssistantService _home;
     private readonly NetworkMonitorService _network;
     private readonly AlertService _alerts;
+    private readonly WeatherService _weather;
 
     public TodayService(
         ObsidianService obsidian,
@@ -17,7 +18,8 @@ public class TodayService
         OperationService operation,
         HomeAssistantService home,
         NetworkMonitorService network,
-        AlertService alerts)
+        AlertService alerts,
+        WeatherService weather)
     {
         _obsidian = obsidian;
         _tasks = tasks;
@@ -26,6 +28,7 @@ public class TodayService
         _home = home;
         _network = network;
         _alerts = alerts;
+        _weather = weather;
     }
 
     public async Task<TodayBriefing> BuildAsync()
@@ -39,6 +42,7 @@ public class TodayService
             .ToList();
         var network = await _network.CheckNetworkStatusAsync();
         var homeOnline = await _home.PingAsync();
+        var weather = await GetWeatherReportSafeAsync();
         var recentAlerts = _alerts.GetRecentAlerts(8).ToList();
         var reviewItems = index
             .Where(item => item.Status.Equals("revisar", StringComparison.OrdinalIgnoreCase))
@@ -55,6 +59,7 @@ public class TodayService
             OperationMode = _operation.IsOperationMode(),
             HomeAssistantOnline = homeOnline,
             Network = network,
+            Weather = weather,
             OpenTasks = openTasks,
             Alerts = recentAlerts,
             ReviewItems = reviewItems
@@ -69,6 +74,12 @@ public class TodayService
     {
         if (!briefing.Network.InternetOnline)
             return "Verificar internet antes de iniciar tarefas que dependem de acesso externo.";
+
+        if (briefing.Weather.Daily.PrecipitationProbabilityMax >= 60)
+            return "Planejar deslocamentos considerando chuva prevista em Rio Preto.";
+
+        if (briefing.Weather.Daily.UvIndexMax >= 8 || briefing.Weather.Daily.MaxTemperature >= 34)
+            return "Evitar sol forte no periodo da tarde e manter agua por perto.";
 
         if (briefing.Network.UnknownDevices.Count > 0)
             return "Abrir o painel Network e classificar os dispositivos desconhecidos.";
@@ -88,9 +99,28 @@ public class TodayService
     private static string BuildSummary(TodayBriefing briefing)
     {
         return $"Nexus online. Vault com {briefing.VaultDocuments} documentos. " +
+            $"Clima em Rio Preto: {briefing.Weather.Summary} " +
             $"Rede {briefing.Network.Status}, internet {(briefing.Network.InternetOnline ? "online" : "offline")}, " +
             $"Home Assistant {(briefing.HomeAssistantOnline ? "online" : "offline")}. " +
             $"Tarefas abertas: {briefing.OpenTasks.Count}. Alertas recentes: {briefing.Alerts.Count}.";
+    }
+
+    private async Task<WeatherReport> GetWeatherReportSafeAsync()
+    {
+        try
+        {
+            return await _weather.GetWeatherReportAsync();
+        }
+        catch
+        {
+            return new WeatherReport
+            {
+                Location = "Sao Jose do Rio Preto",
+                GeneratedAt = DateTime.Now,
+                Summary = "clima indisponivel no momento",
+                Recommendation = "Tentar consultar a previsao novamente mais tarde."
+            };
+        }
     }
 }
 
@@ -103,6 +133,7 @@ public class TodayBriefing
     public bool OperationMode { get; set; }
     public bool HomeAssistantOnline { get; set; }
     public NetworkStatusResult Network { get; set; } = new();
+    public WeatherReport Weather { get; set; } = new();
     public List<string> OpenTasks { get; set; } = new();
     public List<NexusAlert> Alerts { get; set; } = new();
     public List<TodayReviewItem> ReviewItems { get; set; } = new();

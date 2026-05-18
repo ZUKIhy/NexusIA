@@ -1,5 +1,5 @@
 import { NavLink, Route, Routes } from "react-router-dom";
-import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Network, ScrollText, Settings, Terminal } from "lucide-react";
+import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Music2, Network, ScrollText, Settings, Terminal } from "lucide-react";
 import Dashboard from "./pages/Dashboard.jsx";
 import Logs from "./pages/Logs.jsx";
 import SettingsPage from "./pages/Settings.jsx";
@@ -11,6 +11,7 @@ import Procedures from "./pages/Procedures.jsx";
 import HomeAssistant from "./pages/HomeAssistant.jsx";
 import NetworkMonitor from "./pages/NetworkMonitor.jsx";
 import Today from "./pages/Today.jsx";
+import Media from "./pages/Media.jsx";
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <NavItem to="/docs" icon={<FileSearch size={18} />} label="Docs" />
           <NavItem to="/procedures" icon={<ClipboardCheck size={18} />} label="Procedures" />
           <NavItem to="/home-assistant" icon={<HousePlug size={18} />} label="Home Assistant" />
+          <NavItem to="/media" icon={<Music2 size={18} />} label="Media" />
           <NavItem to="/network" icon={<Network size={18} />} label="Network" />
           <NavItem to="/tasks" icon={<ClipboardList size={18} />} label="Tasks" />
           <NavItem to="/logs" icon={<ScrollText size={18} />} label="Logs" />
@@ -52,6 +54,7 @@ export default function App() {
           <Route path="/docs" element={<Docs />} />
           <Route path="/procedures" element={<Procedures />} />
           <Route path="/home-assistant" element={<HomeAssistant />} />
+          <Route path="/media" element={<Media />} />
           <Route path="/network" element={<NetworkMonitor />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/logs" element={<Logs />} />

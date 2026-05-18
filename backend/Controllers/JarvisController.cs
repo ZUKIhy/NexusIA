@@ -24,6 +24,8 @@ public class NexusController : ControllerBase
     private readonly AutoKnowledgeService _autoKnowledge;
     private readonly HomeAssistantService _home;
     private readonly NetworkMonitorService _network;
+    private readonly WeatherService _weather;
+    private readonly SpotifyService _spotify;
     private readonly TodayService _today;
     private readonly IHubContext<NexusHub> _hub;
 
@@ -39,6 +41,8 @@ public class NexusController : ControllerBase
         AutoKnowledgeService autoKnowledge,
         HomeAssistantService home,
         NetworkMonitorService network,
+        WeatherService weather,
+        SpotifyService spotify,
         TodayService today,
         IHubContext<NexusHub> hub)
     {
@@ -53,6 +57,8 @@ public class NexusController : ControllerBase
         _autoKnowledge = autoKnowledge;
         _home = home;
         _network = network;
+        _weather = weather;
+        _spotify = spotify;
         _today = today;
         _hub = hub;
     }
@@ -220,6 +226,12 @@ public class NexusController : ControllerBase
 
         if (intent == "network_status")
             return await NetworkStatusAnswer(message, intent);
+
+        if (intent == "weather_report")
+            return await WeatherReportAnswer(message, intent);
+
+        if (intent == "spotify_control")
+            return await SpotifyAnswer(message, intent);
 
         if (intent == "today_briefing")
             return await TodayBriefingAnswer(message, intent);
@@ -606,6 +618,9 @@ Comando:
         var briefing = await _today.BuildAsync();
         var answer =
             $"Briefing do dia - {briefing.Date:dd/MM/yyyy HH:mm}\n\n" +
+            $"Tempo em Sao Jose do Rio Preto:\n" +
+            $"- {briefing.Weather.Summary}\n" +
+            $"- Recomendacao: {briefing.Weather.Recommendation}\n\n" +
             $"{briefing.Summary}\n\n" +
             $"Modo operacao: {(briefing.OperationMode ? "ativo" : "inativo")}\n" +
             $"Ollama: {(briefing.OllamaEnabled ? "ativo" : "inativo")}\n" +
@@ -620,6 +635,87 @@ Comando:
             answer += "\n\nAlertas recentes:\n" + string.Join("\n", briefing.Alerts.Take(5).Select(alert => $"- {alert.Title} ({alert.Severity})"));
 
         return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> WeatherReportAnswer(string message, string intent)
+    {
+        string answer;
+
+        try
+        {
+            answer = await _weather.GetWeatherReportTextAsync();
+        }
+        catch
+        {
+            answer = "Nao consegui consultar a previsao do tempo agora. A API da Open-Meteo pode estar indisponivel ou sem conexao no momento.";
+        }
+
+        return await LocalAnswer(message, answer, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> SpotifyAnswer(string message, string intent)
+    {
+        if (!_spotify.IsEnabled() || !_spotify.IsConfigured())
+        {
+            return await LocalAnswer(
+                message,
+                "Spotify ainda nao esta configurado. No backend/.env, defina SPOTIFY_ENABLED=true, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET e SPOTIFY_REDIRECT_URI=http://localhost:5000/api/spotify/callback.",
+                "spotify_not_configured"
+            );
+        }
+
+        if (!_spotify.IsAuthenticated())
+        {
+            return await LocalAnswer(
+                message,
+                "Spotify configurado, mas ainda nao autenticado. Abra http://localhost:5000/api/spotify/login, autorize o app e depois peca para tocar suas musicas.",
+                "spotify_login_required"
+            );
+        }
+
+        try
+        {
+            var lower = NormalizeSearchText(message);
+            string answer;
+
+            if (lower.Contains("pausar") || lower.Contains("pause") || lower.Contains("parar musica") || lower.Contains("para a musica"))
+            {
+                answer = await _spotify.PauseAsync();
+            }
+            else if (lower.Contains("proxima") || lower.Contains("prox ") || lower.Contains("passa musica") || lower.Contains("passar musica"))
+            {
+                answer = await _spotify.NextAsync();
+            }
+            else if (lower.Contains("anterior") || lower.Contains("voltar musica") || lower.Contains("volte a musica"))
+            {
+                answer = await _spotify.PreviousAsync();
+            }
+            else if (lower.Contains("volume"))
+            {
+                var volume = ExtractFirstNumber(message);
+                answer = volume.HasValue
+                    ? await _spotify.SetVolumeAsync(volume.Value)
+                    : "Diga o volume em porcentagem, por exemplo: Nexus, volume 40%.";
+            }
+            else if (lower.Contains("tocando agora") || lower.Contains("musica atual") || lower.Contains("o que esta tocando"))
+            {
+                var current = await _spotify.GetCurrentAsync();
+                answer = string.IsNullOrWhiteSpace(current.Track)
+                    ? current.Message
+                    : $"{(current.IsPlaying ? "Tocando" : "Pausado")}: {current.Track} - {current.Artist} em {current.Device}. Volume: {current.VolumePercent}%.";
+            }
+            else
+            {
+                var query = CleanSpotifyPlayCommand(message);
+                answer = await _spotify.PlayAsync(new SpotifyPlayRequest { Query = query });
+            }
+
+            return await LocalAnswer(message, answer, intent);
+        }
+        catch (Exception ex)
+        {
+            return await LocalAnswer(message, ex.Message, "spotify_error");
+        }
     }
 
     private static HomeAssistantParsedAction ParseHomeAssistantAction(string parsed)
@@ -923,6 +1019,34 @@ Responda como se estivesse puxando assunto com Gabriel.
 
         if (lower.Contains("seu status") || lower.Contains("status do sistema") || lower.Contains("qual status"))
             return "system_status";
+
+        if (
+            lower.Contains("tempo") ||
+            lower.Contains("clima") ||
+            lower.Contains("previsao do tempo") ||
+            lower.Contains("previsão do tempo") ||
+            lower.Contains("vai chover") ||
+            lower.Contains("chuva hoje") ||
+            lower.Contains("chover hoje") ||
+            lower.Contains("rio preto")
+        )
+            return "weather_report";
+
+        if (
+            lower.Contains("spotify") ||
+            lower.Contains("musica") ||
+            lower.Contains("música") ||
+            lower.Contains("playlist") ||
+            lower.Contains("tocar ") ||
+            lower.Contains("toque ") ||
+            lower.Contains("pausar") ||
+            lower.Contains("pause") ||
+            lower.Contains("proxima") ||
+            lower.Contains("próxima") ||
+            lower.Contains("anterior") ||
+            lower.Contains("volume")
+        )
+            return "spotify_control";
 
         if (
             lower.Contains("como está") ||
@@ -1487,6 +1611,43 @@ Responda de forma natural.
             cleaned = cleaned.Replace(token, "", StringComparison.OrdinalIgnoreCase);
 
         return cleaned.Trim(' ', '.', ',', '?', '!', ':', ';');
+    }
+
+    private static string CleanSpotifyPlayCommand(string message)
+    {
+        var cleaned = RemoveCommand(
+            message,
+            "Nexus",
+            "spotify",
+            "tocar minhas musicas",
+            "tocar minhas músicas",
+            "toque minhas musicas",
+            "toque minhas músicas",
+            "tocar musica",
+            "tocar música",
+            "toque musica",
+            "toque música",
+            "tocar playlist",
+            "toque playlist",
+            "tocar",
+            "toque",
+            "play"
+        );
+
+        if (string.IsNullOrWhiteSpace(cleaned) ||
+            cleaned.Equals("minhas musicas", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Equals("minhas músicas", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        return cleaned;
+    }
+
+    private static int? ExtractFirstNumber(string message)
+    {
+        var match = Regex.Match(message, @"\d+");
+        return match.Success && int.TryParse(match.Value, out var value)
+            ? Math.Clamp(value, 0, 100)
+            : null;
     }
 
     private static string BuildDocsAnswer(string query, IReadOnlyList<MarkdownSearchResult> results)

@@ -1051,6 +1051,194 @@ code { color: var(--orange-soft); }
   gap: 14px;
 }
 
+.media-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.media-player {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(9, 23, 40, 0.88), rgba(4, 10, 18, 0.94)),
+    repeating-linear-gradient(90deg, rgba(56, 189, 248, 0.035) 0 1px, transparent 1px 42px);
+  padding: 18px;
+}
+
+.media-player.playing {
+  border-color: rgba(249, 115, 22, 0.46);
+}
+
+.media-cover {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  background:
+    radial-gradient(circle at 50% 48%, rgba(249, 115, 22, 0.24), transparent 36%),
+    rgba(1, 8, 18, 0.72);
+}
+
+.media-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-cover svg {
+  color: var(--orange-soft);
+}
+
+.media-now {
+  min-width: 0;
+}
+
+.media-now span {
+  display: block;
+  color: var(--orange-soft);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.media-now h2 {
+  margin: 10px 0 8px;
+  font-size: clamp(28px, 4vw, 56px);
+  line-height: 1.02;
+  overflow-wrap: anywhere;
+}
+
+.media-now p {
+  margin: 0;
+  color: #c2d5e5;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.media-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.media-progress div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--orange));
+}
+
+.media-time {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.media-controls {
+  display: grid;
+  grid-template-columns: auto minmax(260px, 1fr) minmax(240px, 0.7fr);
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+}
+
+.media-main-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.icon-action-button,
+.media-play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+  color: #f5fbff;
+  cursor: pointer;
+}
+
+.icon-action-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.media-play-button {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border-color: rgba(249, 115, 22, 0.55);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(56, 189, 248, 0.16));
+}
+
+.icon-action-button:hover,
+.media-play-button:hover {
+  filter: brightness(1.1);
+  border-color: rgba(255, 208, 138, 0.65);
+}
+
+.icon-action-button:disabled,
+.media-play-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.media-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.media-search input {
+  min-width: 0;
+  height: 44px;
+}
+
+.media-volume {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 48px;
+  gap: 10px;
+  align-items: center;
+  color: var(--orange-soft);
+}
+
+.media-volume input {
+  width: 100%;
+}
+
+.media-volume strong {
+  color: #ffffff;
+  text-align: right;
+}
+
+.media-login {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.media-login p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
 .home-toolbar {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 180px auto;
@@ -2154,6 +2342,7 @@ code {
   .dashboard-grid { grid-template-columns: 1fr; }
   .quick-stats, .settings-grid { grid-template-columns: 1fr 1fr; }
   .docs-layout { grid-template-columns: 1fr; }
+  .media-controls { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {
@@ -2210,6 +2399,11 @@ code {
   .docs-search { grid-template-columns: 34px 1fr; }
   .docs-search button { grid-column: 1 / -1; }
   .docs-results, .docs-preview { min-height: auto; }
+  .media-player { grid-template-columns: 1fr; }
+  .media-cover { max-width: 280px; width: 100%; margin: 0 auto; }
+  .media-search { grid-template-columns: 1fr; }
+  .media-main-controls { justify-content: center; }
+  .media-login { align-items: flex-start; flex-direction: column; }
 }
 
 /* Performance pass: keep the HUD look, reduce paint-heavy effects. */

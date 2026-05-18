@@ -1,5 +1,7 @@
 .env
 **/.env
+backend/secrets/
+backend/*.pid
 node_modules/
 bin/
 obj/

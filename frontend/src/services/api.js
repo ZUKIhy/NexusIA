@@ -146,3 +146,38 @@ export async function getTodayBriefing() {
   const { data } = await api.get("/api/today");
   return data;
 }
+
+export async function getSpotifyStatus() {
+  const { data } = await api.get("/api/spotify/status");
+  return data;
+}
+
+export async function getSpotifyCurrent() {
+  const { data } = await api.get("/api/spotify/current");
+  return data;
+}
+
+export async function playSpotify(query = "") {
+  const { data } = await api.post("/api/spotify/play", { query });
+  return data;
+}
+
+export async function pauseSpotify() {
+  const { data } = await api.post("/api/spotify/pause");
+  return data;
+}
+
+export async function nextSpotify() {
+  const { data } = await api.post("/api/spotify/next");
+  return data;
+}
+
+export async function previousSpotify() {
+  const { data } = await api.post("/api/spotify/previous");
+  return data;
+}
+
+export async function setSpotifyVolume(volumePercent) {
+  const { data } = await api.post("/api/spotify/volume", { volumePercent });
+  return data;
+}
