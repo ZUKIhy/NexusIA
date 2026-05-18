@@ -41,3 +41,13 @@ Resultado principal: Servico Zabbix, controller, frontend e documentacao adicion
 Acao: backup_pos_zabbix
 Consulta: Nexus como camada inteligente sobre Zabbix
 Resultado principal: Backup local final criado em Backups/nexus-zabbix-post-release-20260518-124116.zip.
+
+## 2026-05-18 13:36:50
+Acao: backup_pre_readme_update
+Consulta: Atualizacao do LEIA-ME do Git
+Resultado principal: Backup local criado em Backups/nexus-readme-update-20260518-133650.zip.
+
+## 2026-05-18 13:40:00
+Acao: readme_update
+Consulta: Informacoes importantes, novidades e melhorias do Nexus
+Resultado principal: README.md reescrito com stack, paginas, endpoints, Zabbix, Telegram operacional, configuracao, validacao, backups e seguranca.
