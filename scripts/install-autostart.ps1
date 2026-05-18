@@ -16,3 +16,4 @@ $Shortcut.Description = "Inicia Nexus backend, frontend e Ollama"
 $Shortcut.Save()
 
 Write-Host "Autostart criado em: $ShortcutPath"
+Write-Host "O Nexus vai iniciar backend, frontend, Ollama e abrir http://localhost:5173/today no login do Windows."

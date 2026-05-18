@@ -5,6 +5,7 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 $BackendDir = Join-Path $ProjectRoot "backend"
 $FrontendDir = Join-Path $ProjectRoot "frontend"
 $LogDir = Join-Path $ProjectRoot "logs"
+$FrontendUrl = "http://localhost:5173/today"
 $OllamaCommand = Get-Command "ollama.exe" -ErrorAction SilentlyContinue
 $OllamaExe = if ($OllamaCommand) { $OllamaCommand.Source } else { $null }
 
@@ -68,4 +69,4 @@ Start-HiddenPowerShell -WorkingDirectory $FrontendDir -Command "npm.cmd run dev 
 
 Start-Sleep -Seconds 5
 
-Start-Process "http://localhost:5173" | Out-Null
+Start-Process $FrontendUrl | Out-Null
