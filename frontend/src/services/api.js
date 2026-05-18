@@ -147,6 +147,26 @@ export async function getTodayBriefing() {
   return data;
 }
 
+export async function getWeatherReport() {
+  const { data } = await api.get("/api/weather/report");
+  return data;
+}
+
+export async function getIntegrationsStatus() {
+  const { data } = await api.get("/api/integrations/status");
+  return data;
+}
+
+export async function getCalendarBriefing() {
+  const { data } = await api.get("/api/integrations/calendar/briefing");
+  return data;
+}
+
+export async function getGmailBriefing() {
+  const { data } = await api.get("/api/integrations/gmail/briefing");
+  return data;
+}
+
 export async function getSpotifyStatus() {
   const { data } = await api.get("/api/spotify/status");
   return data;

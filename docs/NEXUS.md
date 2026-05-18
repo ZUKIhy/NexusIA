@@ -347,3 +347,28 @@ Comando:
 O aprendizado usa musicas mais ouvidas, artistas mais ouvidos, generos, playlists e historico recente. Quando novos scopes forem adicionados, abra novamente `/api/spotify/login`.
 
 Mais detalhes estao em `docs/INTEGRATIONS.md`.
+
+## Release Nexus V2 - Cockpit e integracoes
+
+A Home V2 agora consome dados reais de `GET /api/today` e `GET /api/integrations/status`, mantendo o NexusCore em tempo real via SignalR e o chat rapido via `POST /api/nexus/chat`.
+
+As paginas `/system`, `/network` e `/procedures` seguem o visual V2. O painel `/system` tambem mostra o status das integracoes externas.
+
+Novos componentes backend:
+
+- `IntegrationsController.cs`
+- `TelegramService.cs`
+- `GoogleCalendarService.cs`
+- `GmailService.cs`
+
+Endpoints novos:
+
+- `GET /api/integrations/status`
+- `POST /api/integrations/telegram/send`
+- `POST /api/integrations/telegram/alert`
+- `GET /api/integrations/telegram/commands`
+- `POST /api/integrations/telegram/command`
+- `GET /api/integrations/calendar/briefing`
+- `GET /api/integrations/gmail/briefing`
+
+Variaveis estao documentadas em `.env.example` e `backend/.env.example`. Nenhum token deve ser versionado.

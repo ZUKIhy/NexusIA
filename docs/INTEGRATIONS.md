@@ -204,3 +204,25 @@ Backups/
 ```
 
 O `.gitignore` cobre esses caminhos.
+
+## Release Nexus V2 - Cockpit e integracoes
+
+Novos endpoints:
+
+```text
+GET  /api/integrations/status
+POST /api/integrations/telegram/send
+POST /api/integrations/telegram/alert
+GET  /api/integrations/telegram/commands
+POST /api/integrations/telegram/command
+GET  /api/integrations/calendar/briefing
+GET  /api/integrations/gmail/briefing
+```
+
+Telegram usa `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`. Comandos suportados: `/status`, `/network`, `/today` e `/alerts`.
+
+Google Calendar usa `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_ACCESS_TOKEN` e `GOOGLE_CALENDAR_ID` para gerar briefing das proximas 24 horas.
+
+Gmail usa `GMAIL_ENABLED`, `GOOGLE_ACCESS_TOKEN`, `GMAIL_USER_ID` e `GMAIL_BRIEFING_QUERY` para resumir emails recentes.
+
+Sem credenciais, os endpoints retornam `configured=false` e mensagens de integracao nao configurada, sem expor segredos.

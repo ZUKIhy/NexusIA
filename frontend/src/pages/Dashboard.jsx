@@ -1,21 +1,26 @@
 import { useEffect, useState } from "react";
-import { Brain, CalendarDays, ClipboardList, Cpu, FileSearch, Home, Mic2, Music2, Network, ShieldCheck } from "lucide-react";
+import { Brain, CalendarDays, ClipboardList, CloudSun, Cpu, FileSearch, Home, Mail, Music2, Network, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import NexusCore from "../components/JarvisCore";
 import ChatPanel from "../components/ChatPanel";
 import StatusPanel from "../components/StatusPanel";
 import LogPanel from "../components/LogPanel";
 import { createNexusConnection } from "../services/signalr";
+import { getIntegrationsStatus, getTodayBriefing } from "../services/api";
 
 export default function Dashboard() {
   const [status, setStatus] = useState("online");
   const [logs, setLogs] = useState(["Sistema iniciado."]);
+  const [briefing, setBriefing] = useState(null);
+  const [integrations, setIntegrations] = useState(null);
 
   function addLog(message) {
     setLogs((prev) => [message, ...prev].slice(0, 20));
   }
 
   useEffect(() => {
+    refreshCockpit();
+    const cockpitTimer = setInterval(refreshCockpit, 60000);
     const connection = createNexusConnection({
       onLog: (payload) => addLog(payload.message || "Log recebido."),
       onActivated: (payload) => {
@@ -36,8 +41,25 @@ export default function Dashboard() {
       .then(() => addLog("SignalR conectado."))
       .catch(() => addLog("SignalR nao conectou. O backend esta rodando?"));
 
-    return () => connection.stop();
+    return () => {
+      clearInterval(cockpitTimer);
+      connection.stop();
+    };
   }, []);
+
+  async function refreshCockpit() {
+    try {
+      setBriefing(await getTodayBriefing());
+    } catch {
+      addLog("Briefing real indisponivel.");
+    }
+
+    try {
+      setIntegrations(await getIntegrationsStatus());
+    } catch {
+      setIntegrations(null);
+    }
+  }
 
   return (
     <div className="dashboard-grid">
@@ -51,11 +73,11 @@ export default function Dashboard() {
         </div>
 
         <div className="nexus-system-topbar">
-          <SystemChip icon={<ShieldCheck size={14} />} label="Backend" value="online" active />
-          <SystemChip icon={<Brain size={14} />} label="Vault" value="conectado" active />
-          <SystemChip icon={<Cpu size={14} />} label="Ollama" value="GPU" active />
-          <SystemChip icon={<Home size={14} />} label="Home" value="online" active />
-          <SystemChip icon={<Network size={14} />} label="Network" value="monitor" active />
+          <SystemChip icon={<ShieldCheck size={14} />} label="Backend" value={briefing?.nexusStatus || "online"} active />
+          <SystemChip icon={<Brain size={14} />} label="Vault" value={`${briefing?.vaultDocuments ?? 0} docs`} active={Boolean(briefing)} />
+          <SystemChip icon={<Cpu size={14} />} label="Ollama" value={briefing?.ollamaEnabled ? "ativo" : "standby"} active={briefing?.ollamaEnabled} />
+          <SystemChip icon={<Home size={14} />} label="Home" value={briefing?.homeAssistantOnline ? "online" : "offline"} active={briefing?.homeAssistantOnline} />
+          <SystemChip icon={<Network size={14} />} label="Network" value={briefing?.network?.status || "monitor"} active={briefing?.network?.status === "online"} />
         </div>
 
         <div className="nexus-core-stage">
@@ -63,8 +85,8 @@ export default function Dashboard() {
           <div className="nexus-state-panel">
             <span>Estado atual</span>
             <strong>{getStatusLabel(status)}</strong>
-            <p>Motor principal: Ollama local</p>
-            <p>Memoria: Obsidian conectada</p>
+            <p>{briefing?.summary || "Carregando telemetria real do cockpit."}</p>
+            <p>{briefing?.suggestion || "Aguardando briefing operacional."}</p>
           </div>
         </div>
 
@@ -76,10 +98,10 @@ export default function Dashboard() {
         </div>
 
         <div className="quick-stats">
-          <Stat icon={<Brain />} label="Memoria" value="Obsidian conectado" detail="Sincronizacao ativa" />
-          <Stat icon={<Mic2 />} label="Voz" value="Ativa" detail="Wake word pronta" />
-          <Stat icon={<ClipboardList />} label="Tarefas" value="Local" detail="Pendencias no vault" />
-          <Stat icon={<Cpu />} label="IA" value="Ollama + OpenAI" detail="Fallback configurado" />
+          <Stat icon={<CloudSun />} label="Clima" value={briefing?.weather?.current?.temperature !== undefined ? `${Math.round(briefing.weather.current.temperature)} C` : "-"} detail={briefing?.weather?.summary || "Rio Preto"} />
+          <Stat icon={<ClipboardList />} label="Tarefas" value={briefing?.openTasks?.length ?? 0} detail="Abertas no vault" />
+          <Stat icon={<Network />} label="Rede" value={briefing?.network?.internetOnline ? "Internet online" : "Atencao"} detail={`${briefing?.network?.onlineDevices ?? 0} online / ${briefing?.network?.offlineDevices ?? 0} offline`} />
+          <Stat icon={<Mail />} label="Integracoes" value={countConfigured(integrations)} detail="Telegram, agenda e Gmail" />
         </div>
       </section>
 
@@ -126,4 +148,10 @@ function getStatusLabel(status) {
   if (status === "speaking") return "Falando";
   if (status === "error") return "Alerta";
   return "Pronto";
+}
+
+function countConfigured(integrations) {
+  if (!integrations) return "-";
+  const values = [integrations.telegram, integrations.googleCalendar, integrations.gmail];
+  return `${values.filter((item) => item?.configured).length}/3 prontas`;
 }

@@ -36,6 +36,9 @@ builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<SpotifyService>();
 builder.Services.AddSingleton<SpotifyLearningService>();
 builder.Services.AddSingleton<TodayService>();
+builder.Services.AddSingleton<TelegramService>();
+builder.Services.AddSingleton<GoogleCalendarService>();
+builder.Services.AddSingleton<GmailService>();
 builder.Services.AddSingleton<OperationService>();
 builder.Services.AddHostedService<AlertBackgroundService>();
 builder.Services.AddHostedService<SpotifyLearningBackgroundService>();
@@ -68,6 +71,10 @@ app.MapGet("/", () => new
         "/api/spotify/learn",
         "/api/spotify/previous",
         "/api/today",
+        "/api/integrations/status",
+        "/api/integrations/telegram/send",
+        "/api/integrations/calendar/briefing",
+        "/api/integrations/gmail/briefing",
         "/hubs/nexus"
     }
 });
