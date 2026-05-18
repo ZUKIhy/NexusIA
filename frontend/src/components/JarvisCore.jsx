@@ -26,10 +26,12 @@ function statusPulse(status) {
 
 export default function NexusCore({ status = "online" }) {
   const isThinking = status === "thinking";
+  const isSpeaking = status === "speaking";
 
   return (
     <div className={`core-wrapper reactor-core ${status}`}>
       <div className="reactor-backdrop" />
+      <div className="reactor-depth-field" />
       <motion.div
         className="reactor-shadow"
         animate={{ opacity: isThinking ? [0.42, 0.68, 0.42] : [0.34, 0.46, 0.34] }}
@@ -47,6 +49,11 @@ export default function NexusCore({ status = "online" }) {
         transition={{ repeat: Infinity, duration: isThinking ? 30 : 64, ease: "linear" }}
       />
       <div className="reactor-outer-ring ring-c" />
+      <motion.div
+        className="reactor-outer-ring ring-d"
+        animate={{ rotate: isThinking ? 360 : -360 }}
+        transition={{ repeat: Infinity, duration: isThinking ? 18 : 52, ease: "linear" }}
+      />
 
       <div className="reactor-orbits" aria-hidden="true">
         {orbitNodes.map((node) => (
@@ -75,7 +82,25 @@ export default function NexusCore({ status = "online" }) {
         transition={{ repeat: Infinity, duration: isThinking ? 2.2 : 4.5, ease: "easeInOut" }}
       >
         <span />
+        <strong>NEXUS</strong>
       </motion.div>
+
+      <motion.div
+        className="reactor-voice-wave wave-a"
+        animate={{
+          opacity: isSpeaking ? [0.2, 0.65, 0.2] : [0.08, 0.18, 0.08],
+          scale: isSpeaking ? [0.92, 1.1, 0.96] : [1, 1.03, 1],
+        }}
+        transition={{ repeat: Infinity, duration: isSpeaking ? 1.6 : 5.8, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="reactor-voice-wave wave-b"
+        animate={{
+          opacity: isSpeaking ? [0.12, 0.42, 0.12] : [0.04, 0.14, 0.04],
+          scale: isSpeaking ? [0.98, 1.18, 1] : [1, 1.05, 1],
+        }}
+        transition={{ repeat: Infinity, duration: isSpeaking ? 2.1 : 7.2, ease: "easeInOut" }}
+      />
 
       <div className="reactor-scan scan-x" />
       <div className="reactor-scan scan-y" />

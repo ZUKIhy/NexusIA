@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
-import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Music2, Network, ScrollText, Settings, Terminal } from "lucide-react";
+import { Activity, Brain, CalendarDays, ClipboardCheck, ClipboardList, FileSearch, Home, HousePlug, Moon, Music2, Network, ScrollText, Settings, SunMedium, Terminal, Zap } from "lucide-react";
 import Dashboard from "./pages/Dashboard.jsx";
 import Logs from "./pages/Logs.jsx";
 import SettingsPage from "./pages/Settings.jsx";
@@ -13,7 +14,20 @@ import NetworkMonitor from "./pages/NetworkMonitor.jsx";
 import Today from "./pages/Today.jsx";
 import Media from "./pages/Media.jsx";
 
+const THEMES = [
+  { key: "arc", label: "Arc", icon: <Zap size={14} /> },
+  { key: "stealth", label: "Stealth", icon: <Moon size={14} /> },
+  { key: "solar", label: "Solar", icon: <SunMedium size={14} /> },
+];
+
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem("nexus-theme") || "arc");
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("nexus-theme", theme);
+  }, [theme]);
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -23,6 +37,21 @@ export default function App() {
             <strong>N.E.X.U.S</strong>
             <span>Gabriel System</span>
           </div>
+        </div>
+
+        <div className="theme-switcher" aria-label="Tema visual">
+          {THEMES.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={theme === item.key ? "active" : ""}
+              onClick={() => setTheme(item.key)}
+              title={`Tema ${item.label}`}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
 
         <nav>

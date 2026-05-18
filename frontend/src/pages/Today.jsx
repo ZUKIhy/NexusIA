@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardList, Home, Network, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, CloudSun, Home, Network, RefreshCw, ShieldCheck, Sparkles, Wifi } from "lucide-react";
 import { getTodayBriefing } from "../services/api";
 
 export default function Today() {
@@ -25,6 +25,7 @@ export default function Today() {
   }
 
   const network = briefing?.network || {};
+  const weather = briefing?.weather || {};
 
   return (
     <div className="page today-page">
@@ -42,13 +43,28 @@ export default function Today() {
 
       {error && <p className="docs-error">{error}</p>}
 
-      <section className="today-briefing">
-        <div>
-          <span>Briefing</span>
-          <h2>{briefing?.summary || "Carregando briefing..."}</h2>
-          <p>{briefing?.suggestion || "Aguardando dados do Nexus."}</p>
+      <section className="today-cockpit">
+        <div className="today-briefing">
+          <div>
+            <span>Briefing</span>
+            <h2>{briefing?.summary || "Carregando briefing..."}</h2>
+            <p>{briefing?.suggestion || "Aguardando dados do Nexus."}</p>
+          </div>
+          <Sparkles size={34} />
         </div>
-        <Sparkles size={34} />
+
+        <div className="today-orbital">
+          <div className="today-orbital-core">
+            <span>{network.internetOnline ? "ONLINE" : "ATTENTION"}</span>
+            <strong>{briefing?.nexusStatus || "Nexus"}</strong>
+          </div>
+        </div>
+
+        <div className="today-signal-stack">
+          <SignalRow icon={<Wifi size={16} />} label="Internet" value={network.internetOnline ? "Online" : "Offline"} active={network.internetOnline} />
+          <SignalRow icon={<Home size={16} />} label="Casa" value={briefing?.homeAssistantOnline ? "Online" : "Offline"} active={briefing?.homeAssistantOnline} />
+          <SignalRow icon={<CloudSun size={16} />} label="Clima" value={weather.summary || "Sem leitura"} active={Boolean(weather.summary)} />
+        </div>
       </section>
 
       <div className="home-summary">
@@ -124,6 +140,16 @@ export default function Today() {
         </section>
       </div>
     </div>
+  );
+}
+
+function SignalRow({ icon, label, value, active }) {
+  return (
+    <article className={`signal-row ${active ? "active" : "attention"}`}>
+      {icon}
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
   );
 }
 

@@ -1084,6 +1084,9 @@ Responda como se estivesse puxando assunto com Gabriel.
             lower.Contains("playlist") ||
             lower.Contains("tocar ") ||
             lower.Contains("toque ") ||
+            lower.Contains("tocando") ||
+            lower.Contains("musica atual") ||
+            lower.Contains("música atual") ||
             lower.Contains("pausar") ||
             lower.Contains("pause") ||
             lower.Contains("proxima") ||
