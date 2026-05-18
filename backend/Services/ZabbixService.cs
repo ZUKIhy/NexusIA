@@ -99,11 +99,9 @@ public class ZabbixService
         var parameters = new Dictionary<string, object?>
         {
             ["output"] = "extend",
-            ["selectHosts"] = new[] { "hostid", "host", "name" },
             ["selectTags"] = "extend",
-            ["selectAcknowledges"] = "extend",
             ["recent"] = recent,
-            ["sortfield"] = new[] { "severity", "eventid" },
+            ["sortfield"] = "eventid",
             ["sortorder"] = "DESC",
             ["limit"] = GetInt("ZABBIX_PROBLEM_LIMIT", 100)
         };
@@ -112,11 +110,14 @@ public class ZabbixService
             parameters["severities"] = severities;
 
         var result = await CallWithAuthAsync("problem.get", parameters);
-        return result.EnumerateArray()
+        var problems = result.EnumerateArray()
             .Select(ParseProblem)
             .OrderByDescending(problem => problem.Severity)
             .ThenByDescending(problem => problem.EventId)
             .ToList();
+
+        await EnrichProblemHostsAsync(problems);
+        return problems;
     }
 
     public async Task<ZabbixReport> GenerateReportAsync(int? minimumSeverity = null, bool saveToObsidian = true, bool notifyCritical = false)
@@ -199,6 +200,61 @@ public class ZabbixService
         );
 
         await _telegram.SendAlertAsync("Problemas criticos no Zabbix", "critical", detail);
+    }
+
+    private async Task EnrichProblemHostsAsync(IReadOnlyList<ZabbixProblemSummary> problems)
+    {
+        var triggerIds = problems
+            .Select(problem => problem.ObjectId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (triggerIds.Length == 0)
+            return;
+
+        try
+        {
+            var triggerResult = await CallWithAuthAsync("trigger.get", new Dictionary<string, object?>
+            {
+                ["output"] = new[] { "triggerid", "description" },
+                ["triggerids"] = triggerIds,
+                ["selectHosts"] = new[] { "hostid", "host", "name" }
+            });
+
+            var hostsByTrigger = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var trigger in triggerResult.EnumerateArray())
+            {
+                var triggerId = ReadString(trigger, "triggerid");
+                if (string.IsNullOrWhiteSpace(triggerId))
+                    continue;
+
+                if (!trigger.TryGetProperty("hosts", out var hosts) || hosts.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var host = hosts.EnumerateArray().FirstOrDefault();
+                if (host.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var name = ReadString(host, "name");
+                if (string.IsNullOrWhiteSpace(name))
+                    name = ReadString(host, "host");
+
+                if (!string.IsNullOrWhiteSpace(name))
+                    hostsByTrigger[triggerId] = name;
+            }
+
+            foreach (var problem in problems)
+            {
+                if (hostsByTrigger.TryGetValue(problem.ObjectId, out var hostName))
+                    problem.HostName = hostName;
+            }
+        }
+        catch
+        {
+            // Host enrichment is useful for the cockpit, but problems remain valid without it.
+        }
     }
 
     private void SaveReport(ZabbixReport report)
