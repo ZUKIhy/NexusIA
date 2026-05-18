@@ -219,7 +219,11 @@ GET  /api/integrations/calendar/briefing
 GET  /api/integrations/gmail/briefing
 ```
 
-Telegram usa `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`. Comandos suportados: `/status`, `/network`, `/today` e `/alerts`.
+Telegram usa `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID`. Comandos suportados: `/start`, `/help`, `/status`, `/network`, `/today`, `/alerts` e `/zabbix`.
+
+Quando `TELEGRAM_POLLING_ENABLED=true`, o backend escuta mensagens do bot em background. O chat e restrito ao `TELEGRAM_CHAT_ID` configurado. Mensagens comuns tambem sao respondidas pelo Nexus.
+
+Alertas criticos de internet e Home Assistant sao enviados automaticamente pelo Telegram quando detectados pelo `AlertBackgroundService`.
 
 Google Calendar usa `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_ACCESS_TOKEN` e `GOOGLE_CALENDAR_ID` para gerar briefing das proximas 24 horas.
 

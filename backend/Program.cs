@@ -43,6 +43,7 @@ builder.Services.AddSingleton<ZabbixService>();
 builder.Services.AddSingleton<OperationService>();
 builder.Services.AddHostedService<AlertBackgroundService>();
 builder.Services.AddHostedService<SpotifyLearningBackgroundService>();
+builder.Services.AddHostedService<TelegramPollingBackgroundService>();
 
 var app = builder.Build();
 

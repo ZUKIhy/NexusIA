@@ -406,3 +406,26 @@ Variaveis:
 - `ZABBIX_PASSWORD`
 - `ZABBIX_HOST_LIMIT`
 - `ZABBIX_PROBLEM_LIMIT`
+
+## Telegram operacional
+
+O Telegram pode ser usado como canal ativo do Nexus.
+
+Recursos:
+
+- Envio manual por `POST /api/integrations/telegram/send`.
+- Envio de alertas por `TelegramService.SendAlertAsync`.
+- Polling em background por `TelegramPollingBackgroundService`.
+- Chat restrito ao `TELEGRAM_CHAT_ID`.
+- Comandos `/status`, `/today`, `/network`, `/zabbix`, `/alerts`, `/help`.
+- Mensagens comuns respondidas pelo Nexus.
+- Alertas automaticos de internet e Home Assistant pelo `AlertBackgroundService`.
+
+Variaveis:
+
+- `TELEGRAM_ENABLED`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_POLLING_ENABLED`
+- `TELEGRAM_POLLING_INTERVAL_SECONDS`
+- `TELEGRAM_PROCESS_EXISTING_UPDATES`

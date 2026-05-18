@@ -123,14 +123,37 @@ public class ZabbixService
     public async Task<ZabbixReport> GenerateReportAsync(int? minimumSeverity = null, bool saveToObsidian = true, bool notifyCritical = false)
     {
         var status = await GetStatusAsync();
-        var problems = await GetProblemsAsync(minimumSeverity);
-        var hosts = await GetHostsAsync();
+        var problems = new List<ZabbixProblemSummary>();
+        var hosts = new List<ZabbixHostSummary>();
+        string collectionError = "";
+
+        try
+        {
+            problems = (await GetProblemsAsync(minimumSeverity)).ToList();
+        }
+        catch (Exception ex)
+        {
+            collectionError = $"Falha ao consultar problemas: {ex.Message}";
+        }
+
+        try
+        {
+            hosts = (await GetHostsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            collectionError = string.IsNullOrWhiteSpace(collectionError)
+                ? $"Falha ao consultar hosts: {ex.Message}"
+                : collectionError + $" | Falha ao consultar hosts: {ex.Message}";
+        }
+
         var report = new ZabbixReport
         {
             GeneratedAt = DateTime.Now,
             Status = status,
             HostsMonitored = hosts.Count,
-            Problems = problems.ToList()
+            Problems = problems,
+            CollectionError = collectionError
         };
 
         report.CriticalProblems = problems.Count(problem => problem.Severity >= 4);
@@ -273,6 +296,9 @@ public class ZabbixService
         if (!report.Status.Configured)
             return "Zabbix ainda nao configurado no Nexus.";
 
+        if (!string.IsNullOrWhiteSpace(report.CollectionError))
+            return $"Zabbix {report.Status.Status}, mas a coleta ficou parcial: {report.CollectionError}";
+
         if (report.Problems.Count == 0)
             return $"Zabbix {report.Status.Status}. Nenhum problema ativo encontrado em {report.HostsMonitored} host(s).";
 
@@ -283,6 +309,9 @@ public class ZabbixService
     {
         if (!report.Status.Configured)
             return "Configurar ZABBIX_API_URL e credenciais no .env.";
+
+        if (!string.IsNullOrWhiteSpace(report.CollectionError))
+            return "Validar conectividade com o Zabbix e tentar novamente; manter painel /zabbix em observacao.";
 
         if (report.CriticalProblems > 0)
             return "Priorizar severidades High/Disaster, reconhecer eventos em atendimento e registrar evidencias no modo operacao.";
@@ -320,6 +349,7 @@ public class ZabbixService
             $"- Problemas ativos: {report.Problems.Count}",
             $"- Criticos: {report.CriticalProblems}",
             $"- Reconhecidos: {report.AcknowledgedProblems}",
+            string.IsNullOrWhiteSpace(report.CollectionError) ? "" : $"- Erro de coleta: {report.CollectionError}",
             "",
             "## Problemas"
         };
@@ -644,6 +674,7 @@ public class ZabbixReport
     public int CriticalProblems { get; set; }
     public int AcknowledgedProblems { get; set; }
     public List<ZabbixProblemSummary> Problems { get; set; } = new();
+    public string CollectionError { get; set; } = "";
     public string Summary { get; set; } = "";
     public string Recommendation { get; set; } = "";
     public string Markdown { get; set; } = "";

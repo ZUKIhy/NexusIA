@@ -22,6 +22,7 @@ public class AlertBackgroundService : BackgroundService
             {
                 using var scope = _services.CreateScope();
                 var alerts = scope.ServiceProvider.GetRequiredService<AlertService>();
+                var telegram = scope.ServiceProvider.GetRequiredService<TelegramService>();
                 var home = scope.ServiceProvider.GetRequiredService<HomeAssistantService>();
                 var network = scope.ServiceProvider.GetRequiredService<NetworkMonitorService>();
 
@@ -35,6 +36,7 @@ public class AlertBackgroundService : BackgroundService
                         "A API do Home Assistant nao respondeu.",
                         "Verificar energia, rede e host do Home Assistant."
                     );
+                    await telegram.SendMessageAsync("Nexus Alert\nSeveridade: critico\nHome Assistant caiu\n\nA API do Home Assistant nao respondeu.");
                 }
                 _lastHomeOnline = homeOnline;
 
@@ -48,6 +50,7 @@ public class AlertBackgroundService : BackgroundService
                         "Os alvos de ping externos nao responderam.",
                         "Verificar modem, roteador e operadora."
                     );
+                    await telegram.SendMessageAsync("Nexus Alert\nSeveridade: critico\nInternet caiu\n\nOs alvos de ping externos nao responderam.");
                 }
                 _lastInternetOnline = networkStatus.InternetOnline;
             }

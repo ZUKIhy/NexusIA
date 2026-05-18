@@ -38,3 +38,10 @@
 - GET /api/zabbix/problems
 - POST /api/zabbix/report
 - POST /api/zabbix/acknowledge
+
+## Telegram operacional
+- Polling em background habilitado por TELEGRAM_POLLING_ENABLED.
+- Chat restrito ao TELEGRAM_CHAT_ID.
+- Comandos: /status, /today, /network, /zabbix, /alerts, /help.
+- Mensagens comuns sao respondidas pelo Nexus.
+- Alertas criticos podem ser enviados automaticamente pelo canal.
