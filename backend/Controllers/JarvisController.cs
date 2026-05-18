@@ -461,6 +461,9 @@ public class NexusController : ControllerBase
         if (string.IsNullOrWhiteSpace(devicesMap))
             return await LocalAnswer(message, "Nao encontrei o mapa de dispositivos em 07_Nexus/home-assistant-devices.md.", "home_assistant_devices_missing");
 
+        if (TryParseHomeAssistantCommand(message, devicesMap, out var deterministicAction))
+            return await HandleHomeAssistantParsedAction(message, deterministicAction, intent);
+
         var prompt = $@"
 Voce e Nexus.
 
@@ -511,6 +514,11 @@ Comando:
             );
         }
 
+        return await HandleHomeAssistantParsedAction(message, action, intent);
+    }
+
+    private async Task<ActionResult<ChatResponse>> HandleHomeAssistantParsedAction(string message, HomeAssistantParsedAction action, string intent)
+    {
         if (action.Action == "list_states")
         {
             var statesJson = await _home.GetStatesAsync();
@@ -815,6 +823,200 @@ Comando:
                 : 100;
 
         return new HomeAssistantParsedAction(action, entityId, brightness, needsConfirmation);
+    }
+
+    private static bool TryParseHomeAssistantCommand(string message, string devicesMap, out HomeAssistantParsedAction action)
+    {
+        action = new HomeAssistantParsedAction("", "", 0, false);
+        var normalized = NormalizeHomeText(message);
+
+        if (ContainsAny(normalized, "o que esta ligado", "o que tem ligado", "listar estados", "lista estados", "status da casa"))
+        {
+            action = new HomeAssistantParsedAction("list_states", "", 0, false);
+            return true;
+        }
+
+        var deviceMap = ParseHomeAssistantDeviceMap(devicesMap);
+        var matched = FindHomeAssistantDevice(normalized, deviceMap);
+
+        if (matched is null)
+            return false;
+
+        var actionName = DetectHomeAssistantAction(normalized, matched.EntityId);
+        if (string.IsNullOrWhiteSpace(actionName))
+            return false;
+
+        var brightness = ExtractBrightnessPercent(normalized) ?? 100;
+        var entityId = ResolveSceneForAction(matched, actionName);
+        var needsConfirmation = IsSensitiveHomeAssistantAction(new HomeAssistantParsedAction(actionName, entityId, brightness, false));
+
+        action = new HomeAssistantParsedAction(actionName, entityId, brightness, needsConfirmation);
+        return true;
+    }
+
+    private static List<HomeAssistantMappedDevice> ParseHomeAssistantDeviceMap(string devicesMap)
+    {
+        var devices = new List<HomeAssistantMappedDevice>();
+
+        foreach (var rawLine in devicesMap.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            var match = Regex.Match(line, @"^-\s*(?<name>[^:`]+):\s*`(?<entity>[^`]+)`");
+            if (!match.Success)
+                continue;
+
+            devices.Add(new HomeAssistantMappedDevice(
+                match.Groups["name"].Value.Trim(),
+                match.Groups["entity"].Value.Trim()
+            ));
+        }
+
+        return devices;
+    }
+
+    private static HomeAssistantMappedDevice? FindHomeAssistantDevice(string normalizedMessage, IReadOnlyList<HomeAssistantMappedDevice> devices)
+    {
+        var ranked = devices
+            .Select(device => new
+            {
+                Device = device,
+                Score = ScoreHomeAssistantDevice(normalizedMessage, device)
+            })
+            .Where(item => item.Score > 0)
+            .OrderByDescending(item => item.Score)
+            .FirstOrDefault();
+
+        return ranked?.Device;
+    }
+
+    private static int ScoreHomeAssistantDevice(string normalizedMessage, HomeAssistantMappedDevice device)
+    {
+        var aliases = BuildHomeAssistantAliases(device.Name, device.EntityId);
+        var score = 0;
+
+        foreach (var alias in aliases)
+        {
+            if (alias.Length < 2)
+                continue;
+
+            if (normalizedMessage.Contains(alias, StringComparison.OrdinalIgnoreCase))
+                score = Math.Max(score, alias.Length);
+        }
+
+        return score;
+    }
+
+    private static IEnumerable<string> BuildHomeAssistantAliases(string name, string entityId)
+    {
+        var normalizedName = NormalizeHomeText(name);
+        var entityName = entityId.Contains('.') ? entityId[(entityId.IndexOf('.') + 1)..] : entityId;
+        var normalizedEntity = NormalizeHomeText(entityName.Replace('_', ' '));
+        var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            normalizedName,
+            normalizedEntity
+        };
+
+        foreach (var part in normalizedName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.Length >= 3)
+                aliases.Add(part);
+        }
+
+        if (normalizedName.Contains("quarto gabriel") || normalizedName == "quarto")
+            aliases.UnionWith(new[] { "quarto", "gabriel", "luz quarto", "luz do quarto", "quarto do gabriel" });
+
+        if (normalizedName.Contains("fita led"))
+            aliases.UnionWith(new[] { "fita", "led", "fita led" });
+
+        if (normalizedName.Contains("computador"))
+            aliases.UnionWith(new[] { "pc", "computador", "tomada pc", "tomada do pc" });
+
+        if (normalizedName.Contains("ventilador"))
+            aliases.UnionWith(new[] { "ventilador", "fan" });
+
+        if (normalizedName.Contains("ar suite"))
+            aliases.UnionWith(new[] { "ar suite", "suite", "ar da suite" });
+
+        if (normalizedName.Contains("ar zuki"))
+            aliases.UnionWith(new[] { "ar zuki", "zuki", "ar do zuki" });
+
+        return aliases.Where(alias => !string.IsNullOrWhiteSpace(alias));
+    }
+
+    private static string DetectHomeAssistantAction(string normalizedMessage, string entityId)
+    {
+        if (ContainsAny(normalizedMessage, "status", "estado", "esta ligado", "esta desligado", "ta ligado", "ta desligado"))
+            return "get_state";
+
+        if (ContainsAny(normalizedMessage, "alternar", "toggle", "trocar estado"))
+            return "toggle";
+
+        if (ExtractBrightnessPercent(normalizedMessage).HasValue || ContainsAny(normalizedMessage, "brilho", "aumentar luz", "aumenta luz", "diminuir luz", "diminui luz"))
+            return entityId.StartsWith("light.", StringComparison.OrdinalIgnoreCase) ? "set_brightness" : "turn_on";
+
+        if (ContainsAny(normalizedMessage, "desligar", "desliga", "desligue", "apagar", "apaga", "apague", "parar", "para "))
+            return "turn_off";
+
+        if (ContainsAny(normalizedMessage, "ligar", "liga", "ligue", "acender", "acende", "acenda", "ativar", "ativa", "ative"))
+            return "turn_on";
+
+        return "";
+    }
+
+    private static string ResolveSceneForAction(HomeAssistantMappedDevice device, string actionName)
+    {
+        if (!device.EntityId.StartsWith("scene.", StringComparison.OrdinalIgnoreCase))
+            return device.EntityId;
+
+        var normalizedName = NormalizeHomeText(device.Name);
+        var isOffScene = normalizedName.Contains("desligar") || normalizedName.Contains("desligado");
+        var isOnScene = normalizedName.Contains("ligar") || normalizedName.Contains("ligado");
+
+        if (actionName == "turn_off" && isOnScene)
+            return device.EntityId
+                .Replace("_ligado", "_desligado", StringComparison.OrdinalIgnoreCase)
+                .Replace("_ligar", "_desligar", StringComparison.OrdinalIgnoreCase);
+
+        if (actionName == "turn_on" && isOffScene)
+            return device.EntityId
+                .Replace("_desligado", "_ligado", StringComparison.OrdinalIgnoreCase)
+                .Replace("_desligar", "_ligar", StringComparison.OrdinalIgnoreCase);
+
+        return device.EntityId;
+    }
+
+    private static int? ExtractBrightnessPercent(string normalizedMessage)
+    {
+        var match = Regex.Match(normalizedMessage, @"(?<value>\d{1,3})\s*%?");
+        if (!match.Success)
+            return null;
+
+        return int.TryParse(match.Groups["value"].Value, out var value)
+            ? Math.Clamp(value, 1, 100)
+            : null;
+    }
+
+    private static bool ContainsAny(string text, params string[] terms)
+    {
+        return terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeHomeText(string text)
+    {
+        var normalized = text.ToLowerInvariant()
+            .Normalize(System.Text.NormalizationForm.FormD);
+        var chars = normalized
+            .Where(ch => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray();
+
+        return new string(chars)
+            .Replace("nexus", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("por favor", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("pra", "para", StringComparison.OrdinalIgnoreCase)
+            .Replace("pro", "para o", StringComparison.OrdinalIgnoreCase)
+            .Replace("  ", " ", StringComparison.OrdinalIgnoreCase)
+            .Trim(' ', '.', ',', '?', '!', ':', ';');
     }
 
     private static string CleanJsonResponse(string response)
@@ -1245,7 +1447,20 @@ Responda como se estivesse puxando assunto com Gabriel.
             lower.Contains("status da luz") ||
             lower.Contains("status do dispositivo") ||
             lower.Contains("o que esta ligado em casa") ||
-            lower.Contains("o que está ligado em casa")
+            lower.Contains("o que está ligado em casa") ||
+            lower.Contains("ligar o ar") ||
+            lower.Contains("liga o ar") ||
+            lower.Contains("ligue o ar") ||
+            lower.Contains("desligar o ar") ||
+            lower.Contains("desliga o ar") ||
+            lower.Contains("desligue o ar") ||
+            lower.Contains("ar suite") ||
+            lower.Contains("ar zuki") ||
+            lower.Contains("fita led") ||
+            lower.Contains("tomada pc") ||
+            lower.Contains("tomada do pc") ||
+            lower.Contains("quarto gabriel") ||
+            lower.Contains("quarto do gabriel")
         )
             return "home_assistant_control";
 
@@ -1363,6 +1578,8 @@ Responda como se estivesse puxando assunto com Gabriel.
         int Brightness,
         bool NeedsConfirmation
     );
+
+    private record HomeAssistantMappedDevice(string Name, string EntityId);
 
     private static bool IsProbablyCasual(string message)
     {
